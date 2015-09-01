@@ -18,8 +18,6 @@ module Distribution.Version
     , version'
     , semver
     , semver'
-      -- * Analysis
-    , isSemVer
       -- * Pretty Printing
     , prettyVer
     , prettySemVer ) where
@@ -113,7 +111,8 @@ semver' :: String -> Either ParseError SemVer
 semver' = parse semanticVersion "Semantic Version"
 
 semanticVersion :: Parser SemVer
-semanticVersion = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
+semanticVersion = p <* eof
+  where p = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digits :: Parser Int
@@ -136,10 +135,6 @@ metaData = (char '+' *> chunks) <|> pure []
 
 chunks :: Parser [VChunk]
 chunks = many (iunit <|> sunit) `sepBy` char '.'
-
--- | Does a given Version conform to Semantic Versioning?
-isSemVer :: Version -> Bool
-isSemVer = undefined
 
 -- | Convert a Version back to its textual representation.
 prettyVer :: Version -> Text
