@@ -66,7 +66,18 @@ data SemVer = SemVer { majorOf  :: Int
                      , patchOf  :: Int
                      , preRelOf :: [VChunk]
                      , metaOf   :: [VChunk] }
-              deriving (Eq,Show,Ord)
+              deriving (Eq,Show)
+
+instance Ord SemVer where
+  compare (SemVer ma mi pa pr _) (SemVer ma' mi' pa' pr' _) =
+    case compare (ma,mi,pa) (ma',mi',pa') of
+     LT -> LT
+     GT -> GT
+     EQ -> case (pr,pr') of
+            ([],[]) -> EQ
+            ([],_)  -> GT
+            (_,[])  -> LT
+            _       -> compare pr pr'
 
 -- | A single unit of a Version. May be digits or string of characters.
 -- Groups of these are called VChunks, and are the identifiers separated
