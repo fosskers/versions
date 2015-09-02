@@ -6,6 +6,9 @@
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 
+{- TODO
+Lenses for `Version`, since it's Tree-like now.
+-}
 module Distribution.Version
     (
       -- * Types
@@ -24,7 +27,7 @@ module Distribution.Version
 
 import Data.List (intersperse)
 import Data.Monoid ((<>))
-import Data.Text (Text,pack,unpack,empty)
+import Data.Text (Text,pack,unpack,snoc)
 import Text.ParserCombinators.Parsec
 import TextShow (showt)
 
@@ -33,18 +36,12 @@ import TextShow (showt)
 -- | A Version.
 -- This is a *descriptive* parser, based on a collection of version
 -- numbers used in the wild.
--- Legal version numbers conform to the following regex:
 --
--- @([0-9]+:)?[0-9a-zA-Z._+]+(-[0-9]+)?@
---
--- Where the first group of digits represents the epoch number,
--- the second represents the "traditional" version number
--- (i.e. 1.234) as either a group of digits or characters,
--- and the third is a revision number, as often included in software
--- package releases.
-data Version = Version { epochOf    :: Maybe Int
-                       , chunksOf   :: [Text]
-                       , revisionOf :: [VChunk] } deriving (Eq,Show,Ord)
+-- Where groups of letters/numbers, separated by `.`, can be
+-- further separated by the symbols "_-+:"
+data Version = VLeaf [Text] | VNode [Text] VSep Version deriving (Eq,Show)
+
+data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
 -- | A Version that conforms to Semantic Versioning.
 -- This is a *prescriptive* parser, meaning it follows the SemVer standard.
@@ -85,7 +82,7 @@ instance Ord SemVer where
 -- | A single unit of a Version. May be digits or string of characters.
 -- Groups of these are called VChunks, and are the identifiers separated
 -- by periods in the source.
-data VUnit = Digits Int | Str String deriving (Eq,Show,Read,Ord)
+data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 
 type VChunk = [VUnit]
 
@@ -98,21 +95,28 @@ version' :: String -> Either ParseError Version
 version' = parse versionNumber "Version Number"
 
 versionNumber :: Parser Version
-versionNumber =
-  Version <$> optionMaybe (try epoch) <*> units <*> preRel
+versionNumber = try node <|> leaf
 
-epoch :: Parser Int
-epoch = read <$> many1 digit <* char ':'
+leaf :: Parser Version
+leaf = VLeaf <$> tchunks <* eof
 
-units :: Parser [Text]
-units = chunk `sepBy` oneOf "._+"
-  where chunk = pack <$> many1 (letter <|> digit)
+node :: Parser Version
+node = VNode <$> tchunks <*> sep <*> versionNumber
 
-iunit :: Parser VUnit
-iunit = Digits . read <$> many1 digit
+tchunks :: Parser [Text]
+tchunks = (pack <$> many1 (letter <|> digit)) `sepBy` char '.'
 
-sunit :: Parser VUnit
-sunit = Str <$> many1 letter
+sep :: Parser VSep
+sep = choice [ VColon  <$ char ':'
+             , VHyphen <$ char '-'
+             , VPlus   <$ char '+'
+             , VUnder  <$ char '_' ]
+
+sepCh :: VSep -> Char
+sepCh VColon  = ':'
+sepCh VHyphen = '-'
+sepCh VPlus   = '+'
+sepCh VUnder  = '_'
 
 -- | Parse a Semantic Version.
 semver :: Text -> Either ParseError SemVer
@@ -128,7 +132,7 @@ semanticVersion = p <* eof
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digits :: Parser Int
-digits = read <$> (string "0" <|> many1 digit)  -- THIS IS WRONG?
+digits = read <$> (string "0" <|> many1 digit)
 
 major :: Parser Int
 major = digits <* char '.'
@@ -148,12 +152,17 @@ metaData = (char '+' *> chunks) <|> pure []
 chunks :: Parser [VChunk]
 chunks = many (iunit <|> sunit) `sepBy` char '.'
 
+iunit :: Parser VUnit
+iunit = Digits . read <$> many1 digit
+
+sunit :: Parser VUnit
+sunit = Str . pack <$> many1 letter
+
 -- | Convert a Version back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer v = mconcat $ e : u <> r
-  where e = maybe empty (\ep -> showt ep <> ":") $ epochOf v
-        u = intersperse "." $ chunksOf v
-        r = foldable [] ("-" :) $ intersperse "." (chunksAsT $ revisionOf v)
+prettyVer (VLeaf t)     = mconcat $ intersperse "." t
+prettyVer (VNode t s v) = snoc t' (sepCh s) <> prettyVer v
+  where t' = mconcat $ intersperse "." t
 
 -- | Convert a SemVer back to its textual representation.
 prettySemVer :: SemVer -> Text
@@ -165,7 +174,7 @@ prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
 chunksAsT :: [VChunk] -> [Text]
 chunksAsT = map (mconcat . map f)
   where f (Digits i) = showt i
-        f (Str s)    = pack s
+        f (Str s)    = s
 
 -- | Analogous to `maybe` and `either`. If a given Foldable is empty,
 -- a default value is returned. Else, a function is applied to that Foldable.

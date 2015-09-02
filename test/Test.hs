@@ -49,9 +49,9 @@ suite = testGroup "Unit Tests"
   [ testGroup "General Parser"
     [ testGroup "Good Versions" $
       map (\s -> testCase (unpack s) $ isomorph s) goodVers
-    , testGroup "Comparisons" $
-      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
-      zip cabalOrd (tail cabalOrd) <> zip semverOrd (tail semverOrd)
+--    , testGroup "Comparisons" $
+--      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
+--      zip cabalOrd (tail cabalOrd) <> zip semverOrd (tail semverOrd)
     ]
   , testGroup "Semantic Versioning"
     [ testGroup "Bad Versions (shouldn't parse)" $
