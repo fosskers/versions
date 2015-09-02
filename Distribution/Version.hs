@@ -43,9 +43,8 @@ import TextShow (showt)
 -- and the third is a revision number, as often included in software
 -- package releases.
 data Version = Version { epochOf    :: Maybe Int
-                       , chunksOf   :: [VChunk]
-                       , revisionOf :: Maybe Int }
-               deriving (Eq,Show,Ord)
+                       , chunksOf   :: [Text]
+                       , revisionOf :: [VChunk] } deriving (Eq,Show,Ord)
 
 -- | A Version that conforms to Semantic Versioning.
 -- This is a *prescriptive* parser, meaning it follows the SemVer standard.
@@ -65,8 +64,12 @@ data SemVer = SemVer { majorOf  :: Int
                      , minorOf  :: Int
                      , patchOf  :: Int
                      , preRelOf :: [VChunk]
-                     , metaOf   :: [VChunk] }
-              deriving (Eq,Show)
+                     , metaOf   :: [VChunk] } deriving (Show)
+
+-- | Two SemVers are equal if all fields except metadata are equal.
+instance Eq SemVer where
+  (SemVer ma mi pa pr _) == (SemVer ma' mi' pa' pr' _) =
+    (ma,mi,pa,pr) == (ma',mi',pa',pr')
 
 instance Ord SemVer where
   compare (SemVer ma mi pa pr _) (SemVer ma' mi' pa' pr' _) =
@@ -96,22 +99,20 @@ version' = parse versionNumber "Version Number"
 
 versionNumber :: Parser Version
 versionNumber =
-  Version <$> optionMaybe (try epoch) <*> units <*> optionMaybe rev
+  Version <$> optionMaybe (try epoch) <*> units <*> preRel
 
 epoch :: Parser Int
 epoch = read <$> many1 digit <* char ':'
 
-units :: Parser [VChunk]
-units = many1 (iunit <|> sunit) `sepBy` oneOf "._+"
+units :: Parser [Text]
+units = chunk `sepBy` oneOf "._+"
+  where chunk = pack <$> many1 (letter <|> digit)
 
 iunit :: Parser VUnit
 iunit = Digits . read <$> many1 digit
 
 sunit :: Parser VUnit
 sunit = Str <$> many1 letter
-
-rev :: Parser Int
-rev = char '-' *> pure read <*> many1 digit
 
 -- | Parse a Semantic Version.
 semver :: Text -> Either ParseError SemVer
@@ -149,14 +150,14 @@ chunks = many (iunit <|> sunit) `sepBy` char '.'
 
 -- | Convert a Version back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer v = e <> u <> r
+prettyVer v = mconcat $ e : u <> r
   where e = maybe empty (\ep -> showt ep <> ":") $ epochOf v
-        u = mconcat . intersperse "." . chunksAsT $ chunksOf v
-        r = maybe empty (\re -> "-" <> showt re) $ revisionOf v
+        u = intersperse "." $ chunksOf v
+        r = foldable [] ("-" :) $ intersperse "." (chunksAsT $ revisionOf v)
 
 -- | Convert a SemVer back to its textual representation.
 prettySemVer :: SemVer -> Text
-prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver ++ pr' ++ me'
+prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
