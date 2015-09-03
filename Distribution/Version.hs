@@ -7,7 +7,23 @@
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 
 {- TODO
-Lenses for `Version`, since it's Tree-like now.
+(?) Lenses for `Version`, since it's Tree-like now.
+
+*Do* make `Version` an ADT of different version types.
+When comparing, match on types and perform different comparison
+strategies depending on whether the types match.
+This will let us wrap parsers in a `VParser` newtype,
+which we can compose as Monoids, and thus string together
+their execution if one fails.
+
+Ideal  | Passable | Sadness
+-------------------------------
+SemVer | General  | Exceptional
+
+Only at the `Exceptional` level do we have to parse everything as
+raw text, and hope that comparison works properly. A mix of `SemVer`
+and `General` should be hackable to produce accurate comparisons.
+
 -}
 module Distribution.Version
     (
@@ -40,6 +56,14 @@ import TextShow (showt)
 -- Where groups of letters/numbers, separated by `.`, can be
 -- further separated by the symbols "_-+:"
 data Version = VLeaf [Text] | VNode [Text] VSep Version deriving (Eq,Show)
+
+instance Ord Version where
+  compare (VLeaf l1) (VLeaf l2)   = compare l1 l2
+  compare (VNode _ _ _) (VLeaf _) = GT
+  compare (VLeaf _) (VNode _ _ _) = LT
+  compare (VNode t1 _ v1) (VNode t2 _ v2) | t1 < t2 = LT
+                                          | t1 > t2 = GT
+                                          | otherwise = compare v1 v2
 
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
