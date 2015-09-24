@@ -11,13 +11,17 @@ import Test.Tasty.HUnit
 
 ---
 
+-- | These don't need to parse as a SemVer.
 goodVers :: [Text]
-goodVers = [ "1", "1.2", "1.58.0-3", "20.26.1_0-2", "44.0.2403.157-1"
-           , "0.25-2", "1:0.10.16-3", "8.u51-1", "21-2"
-           , "7.1p1-1", "20150826-1", "1.2.3-alpha.2"
-           , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1", "10.2+0.93+1-1"
-           , "003.03-3", "002.000-7"
+goodVers = [ "1", "1.2", "1.58.0-3",  "44.0.2403.157-1"
+           , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1"
+           , "1.2.3-alpha.2"
            ]
+
+messes :: [Text]
+messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "1:0.10.16-3"
+         , "20.26.1_0-2"
+         ]
 
 badSemVs :: [Text]
 badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
@@ -46,14 +50,7 @@ cabalOrd = [ "0.2", "0.2.0", "0.2.0.0" ]
 
 suite :: TestTree
 suite = testGroup "Unit Tests"
-  [ testGroup "General Parser"
-    [ testGroup "Good Versions" $
-      map (\s -> testCase (unpack s) $ isomorph s) goodVers
-    , testGroup "Comparisons" $
-      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
-      zip cabalOrd (tail cabalOrd) <> zip semverOrd (tail semverOrd)
-    ]
-  , testGroup "Semantic Versioning"
+  [ testGroup "(Ideal) Semantic Versioning"
     [ testGroup "Bad Versions (shouldn't parse)" $
       map (\s -> testCase (unpack s) $ assert $ isLeft $ semver s) badSemVs
     , testGroup "Good Versions (should parse)" $
@@ -64,6 +61,14 @@ suite = testGroup "Unit Tests"
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp semver a b)
       (zip semverOrd $ tail semverOrd)
     ]
+  , testGroup "(General) Versions"
+    [ testGroup "Good Versions" $
+      map (\s -> testCase (unpack s) $ isomorph s) goodVers
+    , testGroup "Comparisons" $
+      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
+      zip cabalOrd (tail cabalOrd) <> zip semverOrd (tail semverOrd)
+    ]
+  , testGroup "(Complex) Mess" []
   ]
 
 -- | Does pretty-printing return a Version to its original form?

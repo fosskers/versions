@@ -6,68 +6,42 @@
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 
-{- TODO
-(?) Lenses for `Version`, since it's Tree-like now.
-
-*Do* make `Version` an ADT of different version types.
-When comparing, match on types and perform different comparison
-strategies depending on whether the types match.
-This will let us wrap parsers in a `VParser` newtype,
-which we can compose as Monoids, and thus string together
-their execution if one fails.
-
-Ideal  | Passable | Sadness
--------------------------------
-SemVer | General  | Exceptional
-
-Only at the `Exceptional` level do we have to parse everything as
-raw text, and hope that comparison works properly. A mix of `SemVer`
-and `General` should be hackable to produce accurate comparisons.
-
--}
 module Distribution.Version
     (
       -- * Types
-      Version(..)
+      Versioning(..)
+    , SemVer(..)
+    , Version(..)
+    , Mess(..)
     , VUnit(..)
     , VChunk
-    , SemVer(..)
       -- * Parsers
-    , version
-    , version'
     , semver
     , semver'
+    , version
+    , version'
+    , mess
+    , mess'
+      -- * Wrapped Parsers
+    , semverP
+    , versionP
+    , messP
       -- * Pretty Printing
+    , prettySemVer
     , prettyVer
-    , prettySemVer ) where
+    , prettyMess ) where
 
 import Data.List (intersperse)
-import Data.Monoid ((<>))
+import Data.Semigroup
 import Data.Text (Text,pack,unpack,snoc)
 import Text.ParserCombinators.Parsec
 import TextShow (showt)
 
 ---
 
--- | A Version.
--- This is a *descriptive* parser, based on a collection of version
--- numbers used in the wild.
---
--- Where groups of letters/numbers, separated by `.`, can be
--- further separated by the symbols "_-+:"
-data Version = VLeaf [Text] | VNode [Text] VSep Version deriving (Eq,Show)
+data Versioning = Ideal SemVer | General Version | Complex Mess deriving (Eq)
 
-instance Ord Version where
-  compare (VLeaf l1) (VLeaf l2)   = compare l1 l2
-  compare (VNode _ _ _) (VLeaf _) = GT
-  compare (VLeaf _) (VNode _ _ _) = LT
-  compare (VNode t1 _ v1) (VNode t2 _ v2) | t1 < t2 = LT
-                                          | t1 > t2 = GT
-                                          | otherwise = compare v1 v2
-
-data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
-
--- | A Version that conforms to Semantic Versioning.
+-- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a *prescriptive* parser, meaning it follows the SemVer standard.
 -- Legal semvers conform to the following regex:
 --
@@ -81,17 +55,18 @@ data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 -- 2. Build metadata does not affect version precedence.
 --
 -- For more information, see http://semver.org
-data SemVer = SemVer { majorOf  :: Int
-                     , minorOf  :: Int
-                     , patchOf  :: Int
-                     , preRelOf :: [VChunk]
-                     , metaOf   :: [VChunk] } deriving (Show)
+data SemVer = SemVer { svMajorOf  :: Int
+                     , svMinorOf  :: Int
+                     , svPatchOf  :: Int
+                     , svPreRelOf :: [VChunk]
+                     , svMetaOf   :: [VChunk] } deriving (Show)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
   (SemVer ma mi pa pr _) == (SemVer ma' mi' pa' pr' _) =
     (ma,mi,pa,pr) == (ma',mi',pa',pr')
 
+-- | Build metadata does not affect version precedence.
 instance Ord SemVer where
   compare (SemVer ma mi pa pr _) (SemVer ma' mi' pa' pr' _) =
     case compare (ma,mi,pa) (ma',mi',pa') of
@@ -110,39 +85,52 @@ data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 
 type VChunk = [VUnit]
 
--- | Parse a version number, as defined above. 
-version :: Text -> Either ParseError Version
-version = version' . unpack
+-- | A (General) Version.
+-- Not quite as ideal as a SemVer, but has some internal consistancy
+-- from version to version.
+-- Generally conforms to the @x.x.x-x@ pattern.
+data Version = Version { vChunksOf :: [VChunk]
+                       , vRelOf    :: [VChunk] } deriving (Eq,Ord,Show)
 
--- | Parse a version number, where the input is a legacy String.
-version' :: String -> Either ParseError Version
-version' = parse versionNumber "Version Number"
+{- TODO
+instance Ord Version where
+  compare (Version cs re) (Version cs' re') = undefined
+-}
 
-versionNumber :: Parser Version
-versionNumber = try node <|> leaf
+-- | A (Complex) Mess.
+-- This is a *descriptive* parser, based on examples of stupidly
+-- crafted version numbers used in the wild.
+--
+-- Groups of letters/numbers, separated by `.`, can be
+-- further separated by the symbols "_-+:"
+--
+-- Not guaranteed to have well-defined ordering (Ord) behaviour.
+data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
 
-leaf :: Parser Version
-leaf = VLeaf <$> tchunks <* eof
+instance Ord Mess where
+  compare (VLeaf l1) (VLeaf l2)   = compare l1 l2
+  compare (VNode _ _ _) (VLeaf _) = GT
+  compare (VLeaf _) (VNode _ _ _) = LT
+  compare (VNode t1 _ v1) (VNode t2 _ v2) | t1 < t2 = LT
+                                          | t1 > t2 = GT
+                                          | otherwise = compare v1 v2
 
-node :: Parser Version
-node = VNode <$> tchunks <*> sep <*> versionNumber
+data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
-tchunks :: Parser [Text]
-tchunks = (pack <$> many1 (letter <|> digit)) `sepBy` char '.'
+-- | A wrapper for a parser function. Can be composed via their
+-- Semigroup instance, such that a different parser can be tried
+-- if a previous one fails.
+newtype VParser = VParser { runVP :: Text -> Either ParseError Versioning }
 
-sep :: Parser VSep
-sep = choice [ VColon  <$ char ':'
-             , VHyphen <$ char '-'
-             , VPlus   <$ char '+'
-             , VUnder  <$ char '_' ]
+instance Semigroup VParser where
+  (VParser f) <> (VParser g) = VParser h
+    where h t = either (const (g t)) Right $ f t
 
-sepCh :: VSep -> Char
-sepCh VColon  = ':'
-sepCh VHyphen = '-'
-sepCh VPlus   = '+'
-sepCh VUnder  = '_'
+-- | A wrapped SemVer parser. Can be composed with other parsers.
+semverP :: VParser
+semverP = VParser $ fmap Ideal . semver
 
--- | Parse a Semantic Version.
+-- | Parse a (Ideal) Semantic Version.
 semver :: Text -> Either ParseError SemVer
 semver = semver' . unpack
 
@@ -182,11 +170,54 @@ iunit = Digits . read <$> many1 digit
 sunit :: Parser VUnit
 sunit = Str . pack <$> many1 letter
 
--- | Convert a Version back to its textual representation.
-prettyVer :: Version -> Text
-prettyVer (VLeaf t)     = mconcat $ intersperse "." t
-prettyVer (VNode t s v) = snoc t' (sepCh s) <> prettyVer v
-  where t' = mconcat $ intersperse "." t
+-- | A wrapped Version parser. Can be composed with other parsers.
+versionP :: VParser
+versionP = VParser $ fmap General . version
+
+version :: Text -> Either ParseError Version
+version = version' . unpack
+
+version' :: String -> Either ParseError Version
+version' = parse versionNum "Version"
+
+versionNum :: Parser Version
+versionNum = Version <$> chunks <*> preRel
+
+-- | A wrapped Mess parser. Can be composed with other parsers.
+messP :: VParser
+messP = VParser $ fmap Complex . mess
+
+-- | Parse a (Complex) Mess, as defined above. 
+mess :: Text -> Either ParseError Mess
+mess = mess' . unpack
+
+-- | Parse a version number, where the input is a legacy String.
+mess' :: String -> Either ParseError Mess
+mess' = parse messNumber "Mess"
+
+messNumber :: Parser Mess
+messNumber = try node <|> leaf
+
+leaf :: Parser Mess
+leaf = VLeaf <$> tchunks <* eof
+
+node :: Parser Mess
+node = VNode <$> tchunks <*> sep <*> messNumber
+
+tchunks :: Parser [Text]
+tchunks = (pack <$> many1 (letter <|> digit)) `sepBy` char '.'
+
+sep :: Parser VSep
+sep = choice [ VColon  <$ char ':'
+             , VHyphen <$ char '-'
+             , VPlus   <$ char '+'
+             , VUnder  <$ char '_' ]
+
+sepCh :: VSep -> Char
+sepCh VColon  = ':'
+sepCh VHyphen = '-'
+sepCh VPlus   = '+'
+sepCh VUnder  = '_'
 
 -- | Convert a SemVer back to its textual representation.
 prettySemVer :: SemVer -> Text
@@ -194,6 +225,17 @@ prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+
+prettyVer :: Version -> Text
+prettyVer (Version cs pr) = mconcat $ ver <> pr'
+  where ver = intersperse "." $ chunksAsT cs
+        pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
+
+-- | Convert a Version back to its textual representation.
+prettyMess :: Mess -> Text
+prettyMess (VLeaf t)     = mconcat $ intersperse "." t
+prettyMess (VNode t s v) = snoc t' (sepCh s) <> prettyMess v
+  where t' = mconcat $ intersperse "." t
 
 chunksAsT :: [VChunk] -> [Text]
 chunksAsT = map (mconcat . map f)
