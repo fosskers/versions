@@ -5,7 +5,7 @@ module Test where
 import Data.Either
 import Data.Monoid ((<>))
 import Data.Text (Text,unpack)
-import Distribution.Version
+import Data.Versioning
 import Test.Tasty
 import Test.Tasty.HUnit
 

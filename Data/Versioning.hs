@@ -6,7 +6,7 @@
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 
-module Distribution.Version
+module Data.Versioning
     (
       -- * Types
       Versioning(..)
