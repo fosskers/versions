@@ -15,7 +15,6 @@ import Test.Tasty.HUnit
 goodVers :: [Text]
 goodVers = [ "1", "1.2", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1"
-           , "1.2.3-alpha.2"
            ]
 
 messes :: [Text]
@@ -48,6 +47,9 @@ semverOrd = [ "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta"
 cabalOrd :: [Text]
 cabalOrd = [ "0.2", "0.2.0", "0.2.0.0" ]
 
+versionOrd :: [Text]
+versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1" ]
+
 suite :: TestTree
 suite = testGroup "Unit Tests"
   [ testGroup "(Ideal) Semantic Versioning"
@@ -66,7 +68,7 @@ suite = testGroup "Unit Tests"
       map (\s -> testCase (unpack s) $ isomorph s) goodVers
     , testGroup "Comparisons" $
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
-      zip cabalOrd (tail cabalOrd) <> zip semverOrd (tail semverOrd)
+      zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd)
     ]
   , testGroup "(Complex) Mess" []
   ]

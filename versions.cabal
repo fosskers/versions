@@ -1,5 +1,5 @@
 name:                versions
-version:             0.1.0
+version:             0.2.0
 synopsis:            Types and parsers for software version numbers.
 -- description:         
 license:             BSD3

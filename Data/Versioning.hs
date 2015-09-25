@@ -13,8 +13,10 @@ module Data.Versioning
     , SemVer(..)
     , Version(..)
     , Mess(..)
+    , VParser(..)
     , VUnit(..)
     , VChunk
+    , VSep(..)
       -- * Parsers
     , semver
     , semver'
@@ -27,6 +29,7 @@ module Data.Versioning
     , versionP
     , messP
       -- * Pretty Printing
+    , prettyV
     , prettySemVer
     , prettyVer
     , prettyMess ) where
@@ -39,7 +42,22 @@ import TextShow (showt)
 
 ---
 
-data Versioning = Ideal SemVer | General Version | Complex Mess deriving (Eq)
+-- | A top-level Versioning type. Acts as a wrapper for the more specific
+-- types. This allows each subtype to have its own parser, and for said
+-- parsers to be composed. This is useful for specifying custom behaviour
+-- for when a certain parser fails.
+data Versioning = Ideal SemVer | General Version | Complex Mess
+                deriving (Eq,Show)
+
+instance Ord Versioning where
+  compare (Ideal s)   (Ideal s')   = compare s s'
+  compare (General v) (General v') = compare v v'
+  compare (Complex m) (Complex m') = compare m m'
+  compare (Ideal s)   (General v)  = cmpSV s v
+  compare (General v) (Ideal s)    = undefined
+
+cmpSV :: SemVer -> Version -> Ordering
+cmpSV (SemVer ma mi pa pr me) (Version cs re) = undefined
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a *prescriptive* parser, meaning it follows the SemVer standard.
@@ -51,15 +69,17 @@ data Versioning = Ideal SemVer | General Version | Complex Mess deriving (Eq)
 -- @
 --
 -- Extra Rules:
+--
 -- 1. Pre-release versions have *lower* precedence than normal versions.
+--
 -- 2. Build metadata does not affect version precedence.
 --
 -- For more information, see http://semver.org
-data SemVer = SemVer { svMajorOf  :: Int
-                     , svMinorOf  :: Int
-                     , svPatchOf  :: Int
-                     , svPreRelOf :: [VChunk]
-                     , svMetaOf   :: [VChunk] } deriving (Show)
+data SemVer = SemVer { svMajor  :: Int
+                     , svMinor  :: Int
+                     , svPatch  :: Int
+                     , svPreRel :: [VChunk]
+                     , svMeta   :: [VChunk] } deriving (Show)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
@@ -78,19 +98,21 @@ instance Ord SemVer where
             (_,[])  -> LT
             _       -> compare pr pr'
 
--- | A single unit of a Version. May be digits or string of characters.
--- Groups of these are called VChunks, and are the identifiers separated
+-- | A single unit of a Version. May be digits or a string of characters.
+-- Groups of these are called `VChunk`s, and are the identifiers separated
 -- by periods in the source.
 data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 
+-- | A logical unit of a version number. Can consist of multiple letters
+-- and numbers.
 type VChunk = [VUnit]
 
 -- | A (General) Version.
--- Not quite as ideal as a SemVer, but has some internal consistancy
+-- Not quite as ideal as a `SemVer`, but has some internal consistancy
 -- from version to version.
 -- Generally conforms to the @x.x.x-x@ pattern.
-data Version = Version { vChunksOf :: [VChunk]
-                       , vRelOf    :: [VChunk] } deriving (Eq,Ord,Show)
+data Version = Version { vChunks :: [VChunk]
+                       , vRel    :: [VChunk] } deriving (Eq,Ord,Show)
 
 {- TODO
 instance Ord Version where
@@ -101,8 +123,11 @@ instance Ord Version where
 -- This is a *descriptive* parser, based on examples of stupidly
 -- crafted version numbers used in the wild.
 --
--- Groups of letters/numbers, separated by `.`, can be
--- further separated by the symbols "_-+:"
+-- Groups of letters/numbers, separated by a period, can be
+-- further separated by the symbols @_-+:@
+--
+-- Unfortunately, @VChunk@s cannot be used here, as some developers have
+-- numbers like @1.003.04@ which make parsers quite sad.
 --
 -- Not guaranteed to have well-defined ordering (Ord) behaviour.
 data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
@@ -115,6 +140,8 @@ instance Ord Mess where
                                           | t1 > t2 = GT
                                           | otherwise = compare v1 v2
 
+-- | Developers use a number of symbols to seperate groups of digits/letters
+-- in their version numbers.
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
 -- | A wrapper for a parser function. Can be composed via their
@@ -126,7 +153,7 @@ instance Semigroup VParser where
   (VParser f) <> (VParser g) = VParser h
     where h t = either (const (g t)) Right $ f t
 
--- | A wrapped SemVer parser. Can be composed with other parsers.
+-- | A wrapped `SemVer` parser. Can be composed with other parsers.
 semverP :: VParser
 semverP = VParser $ fmap Ideal . semver
 
@@ -170,28 +197,30 @@ iunit = Digits . read <$> many1 digit
 sunit :: Parser VUnit
 sunit = Str . pack <$> many1 letter
 
--- | A wrapped Version parser. Can be composed with other parsers.
+-- | A wrapped `Version` parser. Can be composed with other parsers.
 versionP :: VParser
 versionP = VParser $ fmap General . version
 
+-- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParseError Version
 version = version' . unpack
 
+-- | Parse a `Version`, where the input is a legacy String.
 version' :: String -> Either ParseError Version
 version' = parse versionNum "Version"
 
 versionNum :: Parser Version
 versionNum = Version <$> chunks <*> preRel
 
--- | A wrapped Mess parser. Can be composed with other parsers.
+-- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
 messP = VParser $ fmap Complex . mess
 
--- | Parse a (Complex) Mess, as defined above. 
+-- | Parse a (Complex) `Mess`, as defined above. 
 mess :: Text -> Either ParseError Mess
 mess = mess' . unpack
 
--- | Parse a version number, where the input is a legacy String.
+-- | Parse a `Mess`, where the input is a legacy String.
 mess' :: String -> Either ParseError Mess
 mess' = parse messNumber "Mess"
 
@@ -219,19 +248,26 @@ sepCh VHyphen = '-'
 sepCh VPlus   = '+'
 sepCh VUnder  = '_'
 
--- | Convert a SemVer back to its textual representation.
+-- | Convert any parsed Versioning type to its textual representation.
+prettyV :: Versioning -> Text
+prettyV (Ideal sv)  = prettySemVer sv
+prettyV (General v) = prettyVer v
+prettyV (Complex m) = prettyMess m
+
+-- | Convert a `SemVer` back to its textual representation.
 prettySemVer :: SemVer -> Text
 prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
 
+-- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> Text
 prettyVer (Version cs pr) = mconcat $ ver <> pr'
   where ver = intersperse "." $ chunksAsT cs
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
 
--- | Convert a Version back to its textual representation.
+-- | Convert a `Mess` back to its textual representation.
 prettyMess :: Mess -> Text
 prettyMess (VLeaf t)     = mconcat $ intersperse "." t
 prettyMess (VNode t s v) = snoc t' (sepCh s) <> prettyMess v
