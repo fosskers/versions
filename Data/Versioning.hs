@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- Module    : Distribution.Version
+-- Module    : Data.Versioning
 -- Copyright : (c) Colin Woodbury, 2015
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
@@ -25,6 +25,7 @@ module Data.Versioning
     , mess
     , mess'
       -- * Wrapped Parsers
+    , parseV
     , semverP
     , versionP
     , messP
@@ -152,6 +153,11 @@ newtype VParser = VParser { runVP :: Text -> Either ParseError Versioning }
 instance Semigroup VParser where
   (VParser f) <> (VParser g) = VParser h
     where h t = either (const (g t)) Right $ f t
+
+-- | Parse a piece of @Text@ into either an (Ideal) SemVer, a (General)
+-- Version, or a (Complex) Mess.
+parseV :: Text -> Either ParseError Versioning
+parseV = runVP $ semverP <> versionP <> messP
 
 -- | A wrapped `SemVer` parser. Can be composed with other parsers.
 semverP :: VParser

@@ -22,6 +22,11 @@ messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "1:0.10.16-3"
          , "20.26.1_0-2"
          ]
 
+messComps :: [Text]
+messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
+            , "10.2+0.94+1-1", "10.3+0.93+1-1", "11.2+0.93+1-1"
+            ]
+
 badSemVs :: [Text]
 badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
            , "1.2.3+a1b!2c3.1"
@@ -70,7 +75,13 @@ suite = testGroup "Unit Tests"
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
       zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd)
     ]
-  , testGroup "(Complex) Mess" []
+  , testGroup "(Complex) Mess"
+    [ testGroup "Good Versions" $
+      map (\s -> testCase (unpack s) $ isomorphM s) messes
+    , testGroup "Comparisons" $
+      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp mess a b) $
+      zip messComps (tail messComps)
+    ]
   ]
 
 -- | Does pretty-printing return a Version to its original form?
@@ -80,6 +91,9 @@ isomorph t = Right t @=? (prettyVer <$> version t)
 -- | Does pretty-printing return a SemVer to its original form?
 isomorphSV :: Text -> Assertion
 isomorphSV t = Right t @=? (prettySemVer <$> semver t)
+
+isomorphM :: Text -> Assertion
+isomorphM t =  Right t @=? (prettyMess <$> mess t)
 
 comp :: Ord b => (Text -> Either a b) -> Text -> Text -> Assertion
 comp f a b = assert $ either (const False) id $ (<) <$> f a <*> f b
