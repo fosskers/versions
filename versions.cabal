@@ -1,5 +1,5 @@
 name:                versions
-version:             0.2.0
+version:             0.3.0
 synopsis:            Types and parsers for software version numbers.
 -- description:         
 license:             BSD3
@@ -7,13 +7,13 @@ license-file:        LICENSE
 author:              Colin Woodbury
 maintainer:          colingw@gmail.com
 -- copyright:           
-category:            Distribution
+category:            Data
 build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.Versioning
+  exposed-modules:     Data.Versions
   -- other-modules:       
   other-extensions:    OverloadedStrings
   build-depends:       base >=4.8 && <4.9

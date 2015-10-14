@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- Module    : Data.Versioning
+-- Module    : Data.Versions
 -- Copyright : (c) Colin Woodbury, 2015
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 
-module Data.Versioning
+module Data.Versions
     (
       -- * Types
       Versioning(..)

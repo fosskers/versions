@@ -5,7 +5,7 @@ module Test where
 import Data.Either
 import Data.Monoid ((<>))
 import Data.Text (Text,unpack)
-import Data.Versioning
+import Data.Versions
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -33,7 +33,7 @@ badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
            ]
 
 goodSemVs :: [Text]
-goodSemVs = [ "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
+goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
             , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1"
             ]
 
