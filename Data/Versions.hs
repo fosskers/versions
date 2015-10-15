@@ -55,10 +55,11 @@ instance Ord Versioning where
   compare (General v) (General v') = compare v v'
   compare (Complex m) (Complex m') = compare m m'
   compare (Ideal s)   (General v)  = cmpSV s v
-  compare (General v) (Ideal s)    = undefined
+  compare (General v) (Ideal s)    = opposite $ cmpSV s v
 
 cmpSV :: SemVer -> Version -> Ordering
-cmpSV (SemVer ma mi pa pr me) (Version cs re) = undefined
+cmpSV (SemVer ma mi pa pr _) (Version cs re) = compare sv $ cs ++ re
+  where sv = [[Digits ma], [Digits mi], [Digits pa]] ++ pr
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a *prescriptive* parser, meaning it follows the SemVer standard.
@@ -107,6 +108,13 @@ data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 -- | A logical unit of a version number. Can consist of multiple letters
 -- and numbers.
 type VChunk = [VUnit]
+
+{-}
+-- | Optionally extract the Int value out of a VChunk.
+chunkAsInt :: VChunk -> Maybe Int
+chunkAsInt [Digits i] = Just i
+chunkAsInt _ = Nothing
+-}
 
 -- | A (General) Version.
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
@@ -216,7 +224,7 @@ version' :: String -> Either ParseError Version
 version' = parse versionNum "Version"
 
 versionNum :: Parser Version
-versionNum = Version <$> chunks <*> preRel
+versionNum = Version <$> chunks <*> preRel <* eof
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
@@ -289,3 +297,9 @@ chunksAsT = map (mconcat . map f)
 foldable :: Foldable f => f b -> (f a -> f b) -> f a -> f b
 foldable d g f | null f    = d
                | otherwise = g f
+
+-- | Flip an Ordering.
+opposite :: Ordering -> Ordering
+opposite EQ = EQ
+opposite LT = GT
+opposite GT = LT

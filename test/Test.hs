@@ -70,7 +70,7 @@ suite = testGroup "Unit Tests"
     ]
   , testGroup "(General) Versions"
     [ testGroup "Good Versions" $
-      map (\s -> testCase (unpack s) $ isomorph s) goodVers
+      map (\s -> testCase (unpack s) $ isomorphV s) goodVers
     , testGroup "Comparisons" $
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
       zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd)
@@ -82,11 +82,27 @@ suite = testGroup "Unit Tests"
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp mess a b) $
       zip messComps (tail messComps)
     ]
+  , testGroup "Mixed Versioning" $
+    [ testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1"
+    , testCase "1.2.3r1 is Version" $ check $ isVersion <$> parseV "1.2.3r1"
+    , testCase "1:1.2.3-1 is Mess" $ check $ isMess <$> parseV "1:1.2.3-1"
+    , testCase "000.000-1 is Mess" $ check $ isMess <$> parseV "000.000-1"
+    , testGroup "Isomorphisms" $
+      map (\s -> testCase (unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
+    , testGroup "Comparisons" $
+      [ testCase "1.2.2r1-1 < 1.2.3-1" $ comp parseV "1.2.2r1-1" "1.2.3-1"
+      , testCase "1.2.3-1 < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
+      ]
+    ]
   ]
 
--- | Does pretty-printing return a Version to its original form?
+-- | Does pretty-printing return a Versioning to its original form?
 isomorph :: Text -> Assertion
-isomorph t = Right t @=? (prettyVer <$> version t)
+isomorph t = Right t @=? (prettyV <$> parseV t)
+
+-- | Does pretty-printing return a Version to its original form?
+isomorphV :: Text -> Assertion
+isomorphV t = Right t @=? (prettyVer <$> version t)
 
 -- | Does pretty-printing return a SemVer to its original form?
 isomorphSV :: Text -> Assertion
@@ -96,7 +112,23 @@ isomorphM :: Text -> Assertion
 isomorphM t =  Right t @=? (prettyMess <$> mess t)
 
 comp :: Ord b => (Text -> Either a b) -> Text -> Text -> Assertion
-comp f a b = assert $ either (const False) id $ (<) <$> f a <*> f b
+comp f a b = check $ (<) <$> f a <*> f b
+
+check :: Either a Bool -> Assertion
+check = assert . either (const False) id
+
+isSemVer :: Versioning -> Bool
+isSemVer (Ideal _) = True
+isSemVer _ = False
+
+isVersion :: Versioning -> Bool
+isVersion (General _) = True
+isVersion _ = False
+
+isMess :: Versioning -> Bool
+isMess (Complex _) = True
+isMess _ = False
+
 
 {-}
 -- Need to submit patch for these, as well as Maybe instance.
