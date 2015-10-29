@@ -50,6 +50,8 @@ import TextShow (showt)
 data Versioning = Ideal SemVer | General Version | Complex Mess
                 deriving (Eq,Show)
 
+-- | Comparison of Ideals and Generals is mostly well-defined.
+-- 
 instance Ord Versioning where
   compare (Ideal s)   (Ideal s')   = compare s s'
   compare (General v) (General v') = compare v v'
@@ -203,7 +205,8 @@ metaData :: Parser [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
 
 chunks :: Parser [VChunk]
-chunks = many (iunit <|> sunit) `sepBy` char '.'
+chunks = (oneZero <|> many (iunit <|> sunit)) `sepBy` char '.'
+  where oneZero = (:[]) . Digits . read <$> string "0"
 
 iunit :: Parser VUnit
 iunit = Digits . read <$> many1 digit
