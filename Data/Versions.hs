@@ -13,10 +13,10 @@ module Data.Versions
     , SemVer(..)
     , Version(..)
     , Mess(..)
-    , VParser(..)
     , VUnit(..)
     , VChunk
     , VSep(..)
+    , VParser(..)
       -- * Parsers
     , semver
     , semver'
@@ -50,27 +50,39 @@ import TextShow (showt)
 data Versioning = Ideal SemVer | General Version | Complex Mess
                 deriving (Eq,Show)
 
--- | Comparison of Ideals and Generals is mostly well-defined.
--- 
+-- | Comparison of @Ideal@s is always well defined.
+--
+-- If comparison of @General@s is well-defined, then comparison
+-- of @Ideal@ and @General@ is well-defined, as there exists a perfect
+-- mapping from @Ideal@ to @General@.
+--
+-- If comparison of @Complex@es is well-defined, then comparison of @General@
+-- and @Complex@ is well defined for the same reason.
+-- This implies comparison of @Ideal@ and @Complex@ is also well-defined.
 instance Ord Versioning where
-  compare (Ideal s)   (Ideal s')   = compare s s'
-  compare (General v) (General v') = compare v v'
-  compare (Complex m) (Complex m') = compare m m'
-  compare (Ideal s)   (General v)  = cmpSV s v
-  compare (General v) (Ideal s)    = opposite $ cmpSV s v
+  compare (Ideal s)     (Ideal s')    = compare s s'
+  compare (General v)   (General v')  = compare v v'
+  compare (Complex m)   (Complex m')  = compare m m'
+  compare (Ideal s)     (General v)   = cmpSV s v
+  compare (General v)   (Ideal s)     = opposite $ cmpSV s v
+  compare (General v)   (Complex m)   = undefined
+  compare (Complex m)   (General v)   = opposite $ undefined
+  compare (Ideal s)     m@(Complex _) = compare (General $ vFromS s) m
+  compare m@(Complex _) (Ideal s)     = compare m (General $ vFromS s)
 
 cmpSV :: SemVer -> Version -> Ordering
-cmpSV (SemVer ma mi pa pr _) (Version cs re) = compare sv $ cs ++ re
-  where sv = [[Digits ma], [Digits mi], [Digits pa]] ++ pr
+cmpSV s (Version cs re) = compare (cs' ++ re') $ cs ++ re
+  where (Version cs' re') = vFromS s
+
+vFromS :: SemVer -> Version
+vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a *prescriptive* parser, meaning it follows the SemVer standard.
--- Legal semvers conform to the following regex:
 --
--- @
--- (0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)
--- (-[0-9A-Za-z]+([0-9A-Za-z.]+)?)(+[0-9A-Za-z]+([0-9A-Za-z.]+)?)
--- @
+-- Legal semvers are of the form: MAJOR.MINOR.PATCH-PRE+META
+--
+-- Example: 1.2.3-r1+commithash
 --
 -- Extra Rules:
 --
@@ -122,6 +134,8 @@ chunkAsInt _ = Nothing
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
 -- from version to version.
 -- Generally conforms to the @x.x.x-x@ pattern.
+--
+-- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1
 data Version = Version { vChunks :: [VChunk]
                        , vRel    :: [VChunk] } deriving (Eq,Ord,Show)
 
@@ -140,7 +154,7 @@ instance Ord Version where
 -- Unfortunately, @VChunk@s cannot be used here, as some developers have
 -- numbers like @1.003.04@ which make parsers quite sad.
 --
--- Not guaranteed to have well-defined ordering (Ord) behaviour.
+-- Not guaranteed to have well-defined ordering (@Ord@) behaviour.
 data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
 
 instance Ord Mess where
@@ -152,7 +166,12 @@ instance Ord Mess where
                                           | otherwise = compare v1 v2
 
 -- | Developers use a number of symbols to seperate groups of digits/letters
--- in their version numbers.
+-- in their version numbers. These are:
+--
+-- * A colon (:). Often denotes an "epoch".
+-- * A hyphen (-).
+-- * A plus (+). Stop using this outside of metadata if you are. Example: @10.2+0.93+1-1@
+-- * An underscore (_). Stop using this if you are.
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
 -- | A wrapper for a parser function. Can be composed via their
