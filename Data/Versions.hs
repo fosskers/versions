@@ -5,6 +5,32 @@
 -- Copyright : (c) Colin Woodbury, 2015
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
+--
+-- A library for parsing and comparing software version numbers.
+--
+-- We like to give version numbers to our software in a myriad of different
+-- ways. Some ways follow strict guidelines for incrementing and comparison.
+-- Some follow conventional wisdom and are generally self-consistent.
+-- Some are just plain asinine. This library provides a means of parsing
+-- and comparing /any/ style of versioning, be it a nice Semantic Version
+-- like this:
+--
+-- > 1.2.3-r1+git123
+--
+-- ...or a monstrosity like this:
+--
+-- > 2:10.2+0.0093r3+1-1
+--
+-- Please switch to <http://semver.org Semantic Versioning> if you
+-- aren't currently using it. It provides consistency in version
+-- incrementing and has the best constraints on comparisons.
+--
+-- == Using the Parsers
+-- In general, `parseV` is the function you want. It attempts to parse
+-- a given @Text@ using the three individual parsers, `semver`, `version`
+-- and `mess`. If one fails, it tries the next. If you know you only want
+-- to parse one specific version type, use that parser directly
+-- (e.g. `semver`).
 
 module Data.Versions
     (
@@ -24,7 +50,7 @@ module Data.Versions
     , version'
     , mess
     , mess'
-      -- * Wrapped Parsers
+      -- ** Wrapped Parsers
     , parseV
     , semverP
     , versionP
@@ -78,7 +104,7 @@ vFromS :: SemVer -> Version
 vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
--- This is a *prescriptive* parser, meaning it follows the SemVer standard.
+-- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
 --
 -- Legal semvers are of the form: MAJOR.MINOR.PATCH-PRE+META
 --
@@ -86,7 +112,7 @@ vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
 --
 -- Extra Rules:
 --
--- 1. Pre-release versions have *lower* precedence than normal versions.
+-- 1. Pre-release versions have /lower/ precedence than normal versions.
 --
 -- 2. Build metadata does not affect version precedence.
 --
@@ -123,13 +149,6 @@ data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 -- and numbers.
 type VChunk = [VUnit]
 
-{-}
--- | Optionally extract the Int value out of a VChunk.
-chunkAsInt :: VChunk -> Maybe Int
-chunkAsInt [Digits i] = Just i
-chunkAsInt _ = Nothing
--}
-
 -- | A (General) Version.
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
 -- from version to version.
@@ -139,13 +158,8 @@ chunkAsInt _ = Nothing
 data Version = Version { vChunks :: [VChunk]
                        , vRel    :: [VChunk] } deriving (Eq,Ord,Show)
 
-{- TODO
-instance Ord Version where
-  compare (Version cs re) (Version cs' re') = undefined
--}
-
 -- | A (Complex) Mess.
--- This is a *descriptive* parser, based on examples of stupidly
+-- This is a /descriptive/ parser, based on examples of stupidly
 -- crafted version numbers used in the wild.
 --
 -- Groups of letters/numbers, separated by a period, can be
@@ -158,9 +172,9 @@ instance Ord Version where
 data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
 
 instance Ord Mess where
-  compare (VLeaf l1) (VLeaf l2)   = compare l1 l2
-  compare (VNode _ _ _) (VLeaf _) = GT
-  compare (VLeaf _) (VNode _ _ _) = LT
+  compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
+  compare (VNode t1 _ _) (VLeaf t2) = compare t1 t2
+  compare (VLeaf t1) (VNode t2 _ _) = compare t1 t2
   compare (VNode t1 _ v1) (VNode t2 _ v2) | t1 < t2 = LT
                                           | t1 > t2 = GT
                                           | otherwise = compare v1 v2
