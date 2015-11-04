@@ -91,8 +91,8 @@ instance Ord Versioning where
   compare (Complex m)   (Complex m')  = compare m m'
   compare (Ideal s)     (General v)   = cmpSV s v
   compare (General v)   (Ideal s)     = opposite $ cmpSV s v
-  compare (General v)   (Complex m)   = undefined
-  compare (Complex m)   (General v)   = opposite $ undefined
+  compare (General v)   (Complex m)   = compare (mFromV v) m
+  compare (Complex m)   (General v)   = opposite $ compare (mFromV v) m
   compare (Ideal s)     m@(Complex _) = compare (General $ vFromS s) m
   compare m@(Complex _) (Ideal s)     = compare m (General $ vFromS s)
 
@@ -100,8 +100,13 @@ cmpSV :: SemVer -> Version -> Ordering
 cmpSV s (Version cs re) = compare (cs' ++ re') $ cs ++ re
   where (Version cs' re') = vFromS s
 
+-- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
 vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
+
+-- | Convert a `Version` to a `Mess`.
+mFromV :: Version -> Mess
+mFromV (Version v r) = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.

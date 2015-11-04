@@ -84,8 +84,12 @@ suite = testGroup "Unit Tests"
     ]
   , testGroup "Mixed Versioning" $
     [ testGroup "Identification" $
-      [ testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1"
+      [ testCase "1.2.3 is SemVer" $ check $ isSemVer <$> parseV "1.2.3"
+      , testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1"
+      , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1+1"
       , testCase "1.2.3r1 is Version" $ check $ isVersion <$> parseV "1.2.3r1"
+      , testCase "0.25-2 is Version" $ check $ isVersion <$> parseV "0.25-2" 
+      , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> parseV "1.2.3+1-1"
       , testCase "1:1.2.3-1 is Mess" $ check $ isMess <$> parseV "1:1.2.3-1"
       , testCase "000.007-1 is Mess" $ check $ isMess <$> parseV "000.007-1"
       , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> parseV "20.26.1_0-2"
@@ -93,8 +97,10 @@ suite = testGroup "Unit Tests"
     , testGroup "Isomorphisms" $
       map (\s -> testCase (unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
     , testGroup "Comparisons" $
-      [ testCase "1.2.2r1-1 < 1.2.3-1" $ comp parseV "1.2.2r1-1" "1.2.3-1"
-      , testCase "1.2.3-1 < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
+      [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp parseV "1.2.2r1-1" "1.2.3-1"
+      , testCase "1.2.3-1   < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
+      , testCase "1.2.3-1   < 2+0007-1"  $ comp parseV "1.2.3-1" "2+0007-1"
+      , testCase "1.2.3r1-1 < 2+0007-1"  $ comp parseV "1.2.3r1-1" "2+0007-1"
       ]
     ]
   ]
