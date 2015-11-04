@@ -111,7 +111,7 @@ mFromV (Version v r) = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
 --
--- Legal semvers are of the form: MAJOR.MINOR.PATCH-PRE+META
+-- Legal semvers are of the form: MAJOR.MINOR.PATCH-PREREL+META
 --
 -- Example: 1.2.3-r1+commithash
 --
@@ -173,7 +173,8 @@ data Version = Version { vChunks :: [VChunk]
 -- Unfortunately, @VChunk@s cannot be used here, as some developers have
 -- numbers like @1.003.04@ which make parsers quite sad.
 --
--- Not guaranteed to have well-defined ordering (@Ord@) behaviour.
+-- Not guaranteed to have well-defined ordering (@Ord@) behaviour,
+-- but so far interal tests show consistency.
 data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
 
 instance Ord Mess where
