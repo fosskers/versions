@@ -72,8 +72,9 @@ suite = testGroup "Unit Tests"
     [ testGroup "Good Versions" $
       map (\s -> testCase (unpack s) $ isomorphV s) goodVers
     , testGroup "Comparisons" $
-      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b) $
-      zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd)
+      testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
+      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b)
+      (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
     ]
   , testGroup "(Complex) Mess"
     [ testGroup "Good Versions" $
@@ -101,6 +102,7 @@ suite = testGroup "Unit Tests"
       , testCase "1.2.3-1   < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
       , testCase "1.2.3-1   < 2+0007-1"  $ comp parseV "1.2.3-1" "2+0007-1"
       , testCase "1.2.3r1-1 < 2+0007-1"  $ comp parseV "1.2.3r1-1" "2+0007-1"
+      , testCase "1.2-5 < 1.2.3-1"       $ comp parseV "1.2-5" "1.2.3-1"
       ]
     ]
   ]

@@ -89,16 +89,12 @@ instance Ord Versioning where
   compare (Ideal s)     (Ideal s')    = compare s s'
   compare (General v)   (General v')  = compare v v'
   compare (Complex m)   (Complex m')  = compare m m'
-  compare (Ideal s)     (General v)   = cmpSV s v
-  compare (General v)   (Ideal s)     = opposite $ cmpSV s v
+  compare (Ideal s)     (General v)   = compare (vFromS s) v
+  compare (General v)   (Ideal s)     = opposite $ compare (vFromS s) v
   compare (General v)   (Complex m)   = compare (mFromV v) m
   compare (Complex m)   (General v)   = opposite $ compare (mFromV v) m
   compare (Ideal s)     m@(Complex _) = compare (General $ vFromS s) m
   compare m@(Complex _) (Ideal s)     = compare m (General $ vFromS s)
-
-cmpSV :: SemVer -> Version -> Ordering
-cmpSV s (Version cs re) = compare (cs' ++ re') $ cs ++ re
-  where (Version cs' re') = vFromS s
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
