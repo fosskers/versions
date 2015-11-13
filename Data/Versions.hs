@@ -65,7 +65,6 @@ import Data.List (intersperse)
 import Data.Semigroup
 import Data.Text (Text,pack,unpack,snoc)
 import Text.ParserCombinators.Parsec
-import TextShow (showt)
 
 ---
 
@@ -341,3 +340,7 @@ opposite :: Ordering -> Ordering
 opposite EQ = EQ
 opposite LT = GT
 opposite GT = LT
+
+-- Yes, `text-show` exists, but this reduces external dependencies.
+showt :: Show a => a -> Text
+showt = pack . show
