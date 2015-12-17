@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Test where
+module Main where
 
 import Data.Either
 import Data.Monoid ((<>))
