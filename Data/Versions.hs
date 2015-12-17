@@ -43,6 +43,14 @@ module Data.Versions
     , VChunk
     , VSep(..)
     , VParser(..)
+      -- * Lenses
+    , svMajor
+    , svMinor
+    , svPatch
+    , svPreRel
+    , svMeta
+    , vChunks
+    , vRel
       -- * Parsers
     , semver
     , semver'
@@ -117,11 +125,31 @@ mFromV (Version v r) = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 -- 2. Build metadata does not affect version precedence.
 --
 -- For more information, see http://semver.org
-data SemVer = SemVer { svMajor  :: Int
-                     , svMinor  :: Int
-                     , svPatch  :: Int
-                     , svPreRel :: [VChunk]
-                     , svMeta   :: [VChunk] } deriving (Show)
+data SemVer = SemVer { _svMajor  :: Int
+                     , _svMinor  :: Int
+                     , _svPatch  :: Int
+                     , _svPreRel :: [VChunk]
+                     , _svMeta   :: [VChunk] } deriving (Show)
+
+-- | svMajor :: Lens' SemVer Int
+svMajor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
+svMajor f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
+
+-- | svMinor :: Lens' SemVer Int
+svMinor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
+svMinor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
+
+-- | svPatch :: Lens' SemVer Int
+svPatch :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
+svPatch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
+
+-- | svPreRel :: Lens' SemVer Int
+svPreRel :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
+svPreRel f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
+
+-- | svMeta :: Lens' SemVer Int
+svMeta :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
+svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
@@ -155,8 +183,16 @@ type VChunk = [VUnit]
 -- Generally conforms to the @x.x.x-x@ pattern.
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1
-data Version = Version { vChunks :: [VChunk]
-                       , vRel    :: [VChunk] } deriving (Eq,Ord,Show)
+data Version = Version { _vChunks :: [VChunk]
+                       , _vRel    :: [VChunk] } deriving (Eq,Ord,Show)
+
+-- | vChunks :: Lens' Version [VChunk]
+vChunks :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
+vChunks f v = fmap (\vc -> v { _vChunks = vc }) (f $ _vChunks v)
+
+-- | vRel :: Lens' Version [VChunk]
+vRel :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
+vRel f v = fmap (\vc -> v { _vRel = vc }) (f $ _vRel v)
 
 -- | A (Complex) Mess.
 -- This is a /descriptive/ parser, based on examples of stupidly
