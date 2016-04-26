@@ -2,7 +2,7 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015
+-- Copyright : (c) Colin Woodbury, 2015, 2016
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 --
