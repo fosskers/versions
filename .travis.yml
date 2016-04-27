@@ -26,6 +26,10 @@ before_install:
 # around some quirks in Travis's terminal implementation.
 script: stack $ARGS --no-terminal --install-ghc test
 
+after_script:
+  - stack install hpc-coveralls
+  - hpc-coveralls versions-test
+
 # Caching so the next build will be fast too.
 cache:
   directories:
