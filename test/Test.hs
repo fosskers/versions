@@ -6,6 +6,7 @@ import Data.Either
 import Data.Monoid ((<>))
 import Data.Text (Text,unpack)
 import Data.Versions
+import Lens.Micro
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -105,6 +106,10 @@ suite = testGroup "Unit Tests"
       , testCase "1.2-5 < 1.2.3-1"       $ comp parseV "1.2-5" "1.2.3-1"
       ]
     ]
+    , testGroup "Lenses and Traversals"
+      [ testCase "SemVer - Increment Patch" incPatch
+      , testCase "Traverse `General` as `Ideal`" noInc
+      ]
   ]
 
 -- | Does pretty-printing return a Versioning to its original form?
@@ -140,6 +145,15 @@ isMess :: Versioning -> Bool
 isMess (Complex _) = True
 isMess _ = False
 
+incPatch :: Assertion
+incPatch = (v1 & _Ideal . svPatch %~ (+ 1)) @?= v2
+  where v1 = Ideal $ SemVer 1 2 3 [] []
+        v2 = Ideal $ SemVer 1 2 4 [] []
+
+-- | Nothing should happen.
+noInc :: Assertion
+noInc = (v & _Ideal . svPatch %~ (+ 1)) @?= v
+  where v = General $ Version [] []
 
 {-}
 -- Need to submit patch for these, as well as Maybe instance.
