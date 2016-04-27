@@ -43,14 +43,6 @@ module Data.Versions
     , VChunk
     , VSep(..)
     , VParser(..)
-      -- * Lenses
-    , svMajor
-    , svMinor
-    , svPatch
-    , svPreRel
-    , svMeta
-    , vChunks
-    , vRel
       -- * Parsers
     , semver
     , semver'
@@ -67,7 +59,21 @@ module Data.Versions
     , prettyV
     , prettySemVer
     , prettyVer
-    , prettyMess ) where
+    , prettyMess
+      -- * Lenses
+      -- ** Top-level Traversals
+    , _Ideal
+    , _General
+    , _Complex
+      -- ** (Ideal) SemVer Lenses
+    , svMajor
+    , svMinor
+    , svPatch
+    , svPreRel
+    , svMeta
+      -- ** (General) Version Lenses
+    , vChunks
+    , vRel ) where
 
 import Data.List (intersperse)
 import Data.Semigroup
@@ -82,6 +88,21 @@ import Text.ParserCombinators.Parsec
 -- for when a certain parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
                 deriving (Eq,Show)
+
+-- | _Ideal :: Traversal' Versioning SemVer
+_Ideal :: Applicative f => (SemVer -> f SemVer) -> Versioning -> f Versioning
+_Ideal f (Ideal s) = Ideal <$> f s
+_Ideal _ v = pure v
+
+-- | _General :: Traversal' Versioning Version
+_General :: Applicative f => (Version -> f Version) -> Versioning -> f Versioning
+_General f (General v) = General <$> f v
+_General _ v = pure v
+
+-- | _Complex :: Traversal' Versioning Mess
+_Complex :: Applicative f => (Mess -> f Mess) -> Versioning -> f Versioning
+_Complex f (Complex m) = Complex <$> f m
+_Complex _ v = pure v
 
 -- | Comparison of @Ideal@s is always well defined.
 --
