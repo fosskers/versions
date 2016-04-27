@@ -45,11 +45,8 @@ module Data.Versions
     , VParser(..)
       -- * Parsers
     , semver
-    , semver'
     , version
-    , version'
     , mess
-    , mess'
       -- ** Wrapped Parsers
     , parseV
     , semverP
@@ -85,7 +82,8 @@ module Data.Versions
 import Data.List (intersperse)
 import Data.Semigroup
 import Data.Text (Text,pack,unpack,snoc)
-import Text.ParserCombinators.Parsec
+import Text.Megaparsec.Text
+import Text.Megaparsec
 
 ---
 
@@ -318,11 +316,7 @@ semverP = VParser $ fmap Ideal . semver
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: Text -> Either ParseError SemVer
-semver = semver' . unpack
-
--- | Parse a Semantic Version, as a legacy String.
-semver' :: String -> Either ParseError SemVer
-semver' = parse semanticVersion "Semantic Version"
+semver = parse semanticVersion "Semantic Version"
 
 semanticVersion :: Parser SemVer
 semanticVersion = p <* eof
@@ -330,7 +324,7 @@ semanticVersion = p <* eof
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digits :: Parser Int
-digits = read <$> (string "0" <|> many1 digit)
+digits = read <$> (string "0" <|> some digitChar)
 
 major :: Parser Int
 major = digits <* char '.'
@@ -352,10 +346,10 @@ chunks = (oneZero <|> many (iunit <|> sunit)) `sepBy` char '.'
   where oneZero = (:[]) . Digits . read <$> string "0"
 
 iunit :: Parser VUnit
-iunit = Digits . read <$> many1 digit
+iunit = Digits . read <$> some digitChar
 
 sunit :: Parser VUnit
-sunit = Str . pack <$> many1 letter
+sunit = Str . pack <$> some letterChar
 
 -- | A wrapped `Version` parser. Can be composed with other parsers.
 versionP :: VParser
@@ -363,11 +357,7 @@ versionP = VParser $ fmap General . version
 
 -- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParseError Version
-version = version' . unpack
-
--- | Parse a `Version`, where the input is a legacy String.
-version' :: String -> Either ParseError Version
-version' = parse versionNum "Version"
+version = parse versionNum "Version"
 
 versionNum :: Parser Version
 versionNum = Version <$> chunks <*> preRel <* eof
@@ -378,11 +368,7 @@ messP = VParser $ fmap Complex . mess
 
 -- | Parse a (Complex) `Mess`, as defined above. 
 mess :: Text -> Either ParseError Mess
-mess = mess' . unpack
-
--- | Parse a `Mess`, where the input is a legacy String.
-mess' :: String -> Either ParseError Mess
-mess' = parse messNumber "Mess"
+mess = parse messNumber "Mess"
 
 messNumber :: Parser Mess
 messNumber = try node <|> leaf
@@ -394,7 +380,7 @@ node :: Parser Mess
 node = VNode <$> tchunks <*> sep <*> messNumber
 
 tchunks :: Parser [Text]
-tchunks = (pack <$> many1 (letter <|> digit)) `sepBy` char '.'
+tchunks = (pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
 
 sep :: Parser VSep
 sep = choice [ VColon  <$ char ':'
