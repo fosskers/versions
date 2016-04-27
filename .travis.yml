@@ -27,9 +27,8 @@ before_install:
 script: stack $ARGS --no-terminal --install-ghc test
 
 after_script:
-  - stack install hpc-coveralls
-  - stack sdist
-  - hpc-coveralls versions-test
+  - travis_retry curl -L https://github.com/rubik/stack-hpc-coveralls/releases/download/v0.0.3.0/shc-linux-x64-$GHCVER.tar.bz2 | tar -xj
+  - ./shc versions versions-test
 
 # Caching so the next build will be fast too.
 cache:
