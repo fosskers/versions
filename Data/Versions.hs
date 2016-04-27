@@ -74,7 +74,10 @@ module Data.Versions
     , svMeta
       -- ** (General) Version Lenses
     , vChunks
-    , vRel ) where
+    , vRel
+      -- ** Misc. Lenses / Traversals
+    , _Digits
+    , _Str ) where
 
 import Data.List (intersperse)
 import Data.Semigroup
@@ -91,20 +94,24 @@ data Versioning = Ideal SemVer | General Version | Complex Mess
                 deriving (Eq,Show)
 
 -- | Traverse some Text for its inner versioning.
+--
+-- > _Versioning :: Traversal' Text Versioning
+--
+-- > ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) == "1.2.4"
 _Versioning :: Applicative f => (Versioning -> f Versioning) -> Text -> f Text
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
 
--- | _Ideal :: Traversal' Versioning SemVer
+-- | > _Ideal :: Traversal' Versioning SemVer
 _Ideal :: Applicative f => (SemVer -> f SemVer) -> Versioning -> f Versioning
 _Ideal f (Ideal s) = Ideal <$> f s
 _Ideal _ v = pure v
 
--- | _General :: Traversal' Versioning Version
+-- | > _General :: Traversal' Versioning Version
 _General :: Applicative f => (Version -> f Version) -> Versioning -> f Versioning
 _General f (General v) = General <$> f v
 _General _ v = pure v
 
--- | _Complex :: Traversal' Versioning Mess
+-- | > _Complex :: Traversal' Versioning Mess
 _Complex :: Applicative f => (Mess -> f Mess) -> Versioning -> f Versioning
 _Complex f (Complex m) = Complex <$> f m
 _Complex _ v = pure v
@@ -157,23 +164,23 @@ data SemVer = SemVer { _svMajor  :: Int
                      , _svPreRel :: [VChunk]
                      , _svMeta   :: [VChunk] } deriving (Show)
 
--- | svMajor :: Lens' SemVer Int
+-- | > svMajor :: Lens' SemVer Int
 svMajor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
 svMajor f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
 
--- | svMinor :: Lens' SemVer Int
+-- | > svMinor :: Lens' SemVer Int
 svMinor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
 svMinor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
 
--- | svPatch :: Lens' SemVer Int
+-- | > svPatch :: Lens' SemVer Int
 svPatch :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
 svPatch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
 
--- | svPreRel :: Lens' SemVer Int
+-- | > svPreRel :: Lens' SemVer Int
 svPreRel :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svPreRel f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
 
--- | svMeta :: Lens' SemVer Int
+-- | > svMeta :: Lens' SemVer Int
 svMeta :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 
@@ -199,6 +206,16 @@ instance Ord SemVer where
 -- by periods in the source.
 data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 
+-- | > _Digits :: Traversal' VUnit Int
+_Digits :: Applicative f => (Int -> f Int) -> VUnit -> f VUnit
+_Digits f (Digits i) = Digits <$> f i
+_Digits _ v = pure v
+
+-- | > _Str :: Traversal' VUnit Text
+_Str :: Applicative f => (Text -> f Text) -> VUnit -> f VUnit
+_Str f (Str t) = Str <$> f t
+_Str _ v = pure v
+
 -- | A logical unit of a version number. Can consist of multiple letters
 -- and numbers.
 type VChunk = [VUnit]
@@ -212,11 +229,11 @@ type VChunk = [VUnit]
 data Version = Version { _vChunks :: [VChunk]
                        , _vRel    :: [VChunk] } deriving (Eq,Ord,Show)
 
--- | vChunks :: Lens' Version [VChunk]
+-- | > vChunks :: Lens' Version [VChunk]
 vChunks :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
 vChunks f v = fmap (\vc -> v { _vChunks = vc }) (f $ _vChunks v)
 
--- | vRel :: Lens' Version [VChunk]
+-- | > vRel :: Lens' Version [VChunk]
 vRel :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
 vRel f v = fmap (\vc -> v { _vRel = vc }) (f $ _vRel v)
 
