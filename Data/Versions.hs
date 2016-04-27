@@ -62,6 +62,7 @@ module Data.Versions
     , prettyMess
       -- * Lenses
       -- ** Top-level Traversals
+    , _Versioning
     , _Ideal
     , _General
     , _Complex
@@ -88,6 +89,10 @@ import Text.ParserCombinators.Parsec
 -- for when a certain parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
                 deriving (Eq,Show)
+
+-- | Traverse some Text for its inner versioning.
+_Versioning :: Applicative f => (Versioning -> f Versioning) -> Text -> f Text
+_Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
 
 -- | _Ideal :: Traversal' Versioning SemVer
 _Ideal :: Applicative f => (SemVer -> f SemVer) -> Versioning -> f Versioning
