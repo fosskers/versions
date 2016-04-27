@@ -28,6 +28,7 @@ script: stack $ARGS --no-terminal --install-ghc test
 
 after_script:
   - stack install hpc-coveralls
+  - stack sdist
   - hpc-coveralls versions-test
 
 # Caching so the next build will be fast too.
