@@ -61,8 +61,11 @@ module Data.Versions
     , prettyVer
     , prettyMess
       -- * Lenses
-      -- ** Top-level Traversals
+      -- **  Traversing Text
     , _Versioning
+    , _SemVer
+    , _Version
+      -- ** Versioning Traversals
     , _Ideal
     , _General
     , _Complex
@@ -100,6 +103,18 @@ data Versioning = Ideal SemVer | General Version | Complex Mess
 -- > ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) == "1.2.4"
 _Versioning :: Applicative f => (Versioning -> f Versioning) -> Text -> f Text
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
+
+-- | Traverse some Text for its inner SemVer.
+--
+-- > _SemVer :: Traversal' Text SemVer
+_SemVer :: Applicative f => (SemVer -> f SemVer) -> Text -> f Text
+_SemVer f t = either (const (pure t)) (fmap prettySemVer . f) $ semver t
+
+-- | Traverse some Text for its inner Version.
+--
+-- > _Version :: Traversal' Text Version
+_Version :: Applicative f => (Version -> f Version) -> Text -> f Text
+_Version f t = either (const (pure t)) (fmap prettyVer . f) $ version t
 
 -- | > _Ideal :: Traversal' Versioning SemVer
 _Ideal :: Applicative f => (SemVer -> f SemVer) -> Versioning -> f Versioning

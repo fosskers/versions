@@ -109,6 +109,7 @@ suite = testGroup "Unit Tests"
     , testGroup "Lenses and Traversals"
       [ testCase "SemVer - Increment Patch" incPatch
       , testCase "SemVer - Increment Patch from Text" incFromT
+      , testCase "SemVer - Get patches" patches
       , testCase "Traverse `General` as `Ideal`" noInc
       ]
   ]
@@ -158,6 +159,10 @@ noInc = (v & _Ideal . svPatch %~ (+ 1)) @?= v
 
 incFromT :: Assertion
 incFromT = ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) @?= "1.2.4"
+
+patches :: Assertion
+patches = ps @?= [3,4,5]
+  where ps = ["1.2.3","2.3.4","3.4.5"] ^.. each . _SemVer . svPatch
 
 {-}
 -- Need to submit patch for these, as well as Maybe instance.
