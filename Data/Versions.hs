@@ -103,33 +103,39 @@ data Versioning = Ideal SemVer | General Version | Complex Mess
 -- > ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) == "1.2.4"
 _Versioning :: Applicative f => (Versioning -> f Versioning) -> Text -> f Text
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
+{-# INLINE _Versioning #-}
 
 -- | Traverse some Text for its inner SemVer.
 --
 -- > _SemVer :: Traversal' Text SemVer
 _SemVer :: Applicative f => (SemVer -> f SemVer) -> Text -> f Text
 _SemVer f t = either (const (pure t)) (fmap prettySemVer . f) $ semver t
+{-# INLINE _SemVer #-}
 
 -- | Traverse some Text for its inner Version.
 --
 -- > _Version :: Traversal' Text Version
 _Version :: Applicative f => (Version -> f Version) -> Text -> f Text
 _Version f t = either (const (pure t)) (fmap prettyVer . f) $ version t
+{-# INLINE _Version #-}
 
 -- | > _Ideal :: Traversal' Versioning SemVer
 _Ideal :: Applicative f => (SemVer -> f SemVer) -> Versioning -> f Versioning
 _Ideal f (Ideal s) = Ideal <$> f s
 _Ideal _ v = pure v
+{-# INLINE _Ideal #-}
 
 -- | > _General :: Traversal' Versioning Version
 _General :: Applicative f => (Version -> f Version) -> Versioning -> f Versioning
 _General f (General v) = General <$> f v
 _General _ v = pure v
+{-# INLINE _General #-}
 
 -- | > _Complex :: Traversal' Versioning Mess
 _Complex :: Applicative f => (Mess -> f Mess) -> Versioning -> f Versioning
 _Complex f (Complex m) = Complex <$> f m
 _Complex _ v = pure v
+{-# INLINE _Complex #-}
 
 -- | Comparison of @Ideal@s is always well defined.
 --
@@ -182,22 +188,27 @@ data SemVer = SemVer { _svMajor  :: Int
 -- | > svMajor :: Lens' SemVer Int
 svMajor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
 svMajor f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
+{-# INLINE svMajor #-}
 
 -- | > svMinor :: Lens' SemVer Int
 svMinor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
 svMinor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
+{-# INLINE svMinor #-}
 
 -- | > svPatch :: Lens' SemVer Int
 svPatch :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
 svPatch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
+{-# INLINE svPatch #-}
 
 -- | > svPreRel :: Lens' SemVer Int
 svPreRel :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svPreRel f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
+{-# INLINE svPreRel #-}
 
 -- | > svMeta :: Lens' SemVer Int
 svMeta :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
+{-# INLINE svMeta #-}
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
@@ -225,11 +236,13 @@ data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
 _Digits :: Applicative f => (Int -> f Int) -> VUnit -> f VUnit
 _Digits f (Digits i) = Digits <$> f i
 _Digits _ v = pure v
+{-# INLINE _Digits #-}
 
 -- | > _Str :: Traversal' VUnit Text
 _Str :: Applicative f => (Text -> f Text) -> VUnit -> f VUnit
 _Str f (Str t) = Str <$> f t
 _Str _ v = pure v
+{-# INLINE _Str #-}
 
 -- | A logical unit of a version number. Can consist of multiple letters
 -- and numbers.
@@ -247,10 +260,12 @@ data Version = Version { _vChunks :: [VChunk]
 -- | > vChunks :: Lens' Version [VChunk]
 vChunks :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
 vChunks f v = fmap (\vc -> v { _vChunks = vc }) (f $ _vChunks v)
+{-# INLINE vChunks #-}
 
 -- | > vRel :: Lens' Version [VChunk]
 vRel :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
 vRel f v = fmap (\vc -> v { _vRel = vc }) (f $ _vRel v)
+{-# INLINE vRel #-}
 
 -- | A (Complex) Mess.
 -- This is a /descriptive/ parser, based on examples of stupidly
