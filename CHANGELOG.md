@@ -1,6 +1,10 @@
 Changelog
 =========
 
+3.0.0
+-----
+- Updated for `megaparsec-5` and `ghc-8`
+
 2.0.0
 -----
 - Switched to `megaparsec` to perform all parsing as `Text`
