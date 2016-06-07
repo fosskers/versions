@@ -43,6 +43,7 @@ module Data.Versions
     , VChunk
     , VSep(..)
     , VParser(..)
+    , ParsingError
       -- * Parsers
     , semver
     , version
@@ -57,6 +58,7 @@ module Data.Versions
     , prettySemVer
     , prettyVer
     , prettyMess
+    , parseErrorPretty
       -- * Lenses
       -- **  Traversing Text
     , _Versioning
@@ -296,10 +298,13 @@ instance Ord Mess where
 -- * An underscore (_). Stop using this if you are.
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
+-- | A synonym for the more verbose `megaparsec` error type.
+type ParsingError = ParseError (Token Text) Dec
+
 -- | A wrapper for a parser function. Can be composed via their
 -- Semigroup instance, such that a different parser can be tried
 -- if a previous one fails.
-newtype VParser = VParser { runVP :: Text -> Either ParseError Versioning }
+newtype VParser = VParser { runVP :: Text -> Either ParsingError Versioning }
 
 instance Semigroup VParser where
   (VParser f) <> (VParser g) = VParser h
@@ -307,7 +312,7 @@ instance Semigroup VParser where
 
 -- | Parse a piece of @Text@ into either an (Ideal) SemVer, a (General)
 -- Version, or a (Complex) Mess.
-parseV :: Text -> Either ParseError Versioning
+parseV :: Text -> Either ParsingError Versioning
 parseV = runVP $ semverP <> versionP <> messP
 
 -- | A wrapped `SemVer` parser. Can be composed with other parsers.
@@ -315,7 +320,7 @@ semverP :: VParser
 semverP = VParser $ fmap Ideal . semver
 
 -- | Parse a (Ideal) Semantic Version.
-semver :: Text -> Either ParseError SemVer
+semver :: Text -> Either ParsingError SemVer
 semver = parse semanticVersion "Semantic Version"
 
 semanticVersion :: Parser SemVer
@@ -356,7 +361,7 @@ versionP :: VParser
 versionP = VParser $ fmap General . version
 
 -- | Parse a (General) `Version`, as defined above.
-version :: Text -> Either ParseError Version
+version :: Text -> Either ParsingError Version
 version = parse versionNum "Version"
 
 versionNum :: Parser Version
@@ -366,8 +371,8 @@ versionNum = Version <$> chunks <*> preRel <* eof
 messP :: VParser
 messP = VParser $ fmap Complex . mess
 
--- | Parse a (Complex) `Mess`, as defined above. 
-mess :: Text -> Either ParseError Mess
+-- | Parse a (Complex) `Mess`, as defined above.
+mess :: Text -> Either ParsingError Mess
 mess = parse messNumber "Mess"
 
 messNumber :: Parser Mess
