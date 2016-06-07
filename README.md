@@ -3,16 +3,19 @@ versions
 
 [![Build Status](https://travis-ci.org/aurapm/haskell-versions.svg?branch=master)](https://travis-ci.org/aurapm/haskell-versions)
 [![Coverage Status](https://coveralls.io/repos/github/aurapm/haskell-versions/badge.svg?branch=master)](https://coveralls.io/github/aurapm/haskell-versions?branch=master)
+[![Hackage](https://img.shields.io/hackage/v/versions.svg?style=flat)](https://hackage.haskell.org/package/versions)
+[![Stackage Nightly](http://stackage.org/package/versions/badge/nightly)](http://stackage.org/nightly/package/versions)
+[![Stackage LTS](http://stackage.org/package/versions/badge/lts)](http://stackage.org/lts/package/versions)
 
 A Haskell library for parsing and comparing software version numbers.
 
 About
 -----
-We like to give version numbers to our software in a myriad of different
-ways. Some ways follow strict guidelines for incrementing and comparison.
-Some follow conventional wisdom and are generally self-consistent. Some are
-just plain asinine. This library provides a means of parsing and comparing
-*any* style of versioning, be it a nice Semantic Version like this:
+We like to give version numbers to our software in a myriad of ways. Some
+ways follow strict guidelines for incrementing and comparison. Some follow
+conventional wisdom and are generally self-consistent. Some are just plain
+asinine. This library provides a means of parsing and comparing *any* style
+of versioning, be it a nice Semantic Version like this:
 
 > 1.2.3-r1+git123
 

@@ -3,7 +3,7 @@ version:             3.0.0
 synopsis:            Types and parsers for software version numbers.
 description:         A library for parsing and comparing software version numbers.
                      .
-                     We like to give version numbers to our software in a myriad of different
+                     We like to give version numbers to our software in a myriad of
                      ways. Some ways follow strict guidelines for incrementing and comparison.
                      Some follow conventional wisdom and are generally self-consistent.
                      Some are just plain asinine. This library provides a means of parsing
