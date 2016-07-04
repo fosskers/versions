@@ -1,7 +1,7 @@
 versions
 ========
 
-[![Build Status](https://travis-ci.org/aurapm/haskell-versions.svg?branch=master)](https://travis-ci.org/aurapm/haskell-versions)
+[![Build Status](https://travis-ci.org/aurapm/haskell-versions.svg?branch=master)](https://travis-ci.org/fosskers/versions)
 [![Coverage Status](https://coveralls.io/repos/github/aurapm/haskell-versions/badge.svg?branch=master)](https://coveralls.io/github/aurapm/haskell-versions?branch=master)
 [![Hackage](https://img.shields.io/hackage/v/versions.svg?style=flat)](https://hackage.haskell.org/package/versions)
 [![Stackage Nightly](http://stackage.org/package/versions/badge/nightly)](http://stackage.org/nightly/package/versions)
