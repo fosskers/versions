@@ -2,7 +2,7 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015, 2016
+-- Copyright : (c) Colin Woodbury, 2015 - 2017
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 --
@@ -83,9 +83,9 @@ module Data.Versions
 
 import Data.List (intersperse)
 import Data.Semigroup
-import Data.Text (Text,pack,unpack,snoc)
-import Text.Megaparsec.Text
+import Data.Text (Text,pack,snoc)
 import Text.Megaparsec
+import Text.Megaparsec.Text
 
 ---
 
@@ -93,8 +93,35 @@ import Text.Megaparsec
 -- types. This allows each subtype to have its own parser, and for said
 -- parsers to be composed. This is useful for specifying custom behaviour
 -- for when a certain parser fails.
-data Versioning = Ideal SemVer | General Version | Complex Mess
-                deriving (Eq,Show)
+data Versioning = Ideal SemVer | General Version | Complex Mess deriving (Eq,Show)
+
+-- | Comparison of @Ideal@s is always well defined.
+--
+-- If comparison of @General@s is well-defined, then comparison
+-- of @Ideal@ and @General@ is well-defined, as there exists a perfect
+-- mapping from @Ideal@ to @General@.
+--
+-- If comparison of @Complex@es is well-defined, then comparison of @General@
+-- and @Complex@ is well defined for the same reason.
+-- This implies comparison of @Ideal@ and @Complex@ is also well-defined.
+instance Ord Versioning where
+  compare (Ideal s)     (Ideal s')    = compare s s'
+  compare (General v)   (General v')  = compare v v'
+  compare (Complex m)   (Complex m')  = compare m m'
+  compare (Ideal s)     (General v)   = compare (vFromS s) v
+  compare (General v)   (Ideal s)     = opposite $ compare (vFromS s) v
+  compare (General v)   (Complex m)   = compare (mFromV v) m
+  compare (Complex m)   (General v)   = opposite $ compare (mFromV v) m
+  compare (Ideal s)     m@(Complex _) = compare (General $ vFromS s) m
+  compare m@(Complex _) (Ideal s)     = compare m (General $ vFromS s)
+
+-- | Convert a `SemVer` to a `Version`.
+vFromS :: SemVer -> Version
+vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
+
+-- | Convert a `Version` to a `Mess`.
+mFromV :: Version -> Mess
+mFromV (Version v r) = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 
 -- | Traverse some Text for its inner versioning.
 --
@@ -137,34 +164,6 @@ _Complex f (Complex m) = Complex <$> f m
 _Complex _ v = pure v
 {-# INLINE _Complex #-}
 
--- | Comparison of @Ideal@s is always well defined.
---
--- If comparison of @General@s is well-defined, then comparison
--- of @Ideal@ and @General@ is well-defined, as there exists a perfect
--- mapping from @Ideal@ to @General@.
---
--- If comparison of @Complex@es is well-defined, then comparison of @General@
--- and @Complex@ is well defined for the same reason.
--- This implies comparison of @Ideal@ and @Complex@ is also well-defined.
-instance Ord Versioning where
-  compare (Ideal s)     (Ideal s')    = compare s s'
-  compare (General v)   (General v')  = compare v v'
-  compare (Complex m)   (Complex m')  = compare m m'
-  compare (Ideal s)     (General v)   = compare (vFromS s) v
-  compare (General v)   (Ideal s)     = opposite $ compare (vFromS s) v
-  compare (General v)   (Complex m)   = compare (mFromV v) m
-  compare (Complex m)   (General v)   = opposite $ compare (mFromV v) m
-  compare (Ideal s)     m@(Complex _) = compare (General $ vFromS s) m
-  compare m@(Complex _) (Ideal s)     = compare m (General $ vFromS s)
-
--- | Convert a `SemVer` to a `Version`.
-vFromS :: SemVer -> Version
-vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
-
--- | Convert a `Version` to a `Mess`.
-mFromV :: Version -> Mess
-mFromV (Version v r) = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
-
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
 --
@@ -184,6 +183,28 @@ data SemVer = SemVer { _svMajor  :: Int
                      , _svPatch  :: Int
                      , _svPreRel :: [VChunk]
                      , _svMeta   :: [VChunk] } deriving (Show)
+
+-- | Two SemVers are equal if all fields except metadata are equal.
+instance Eq SemVer where
+  (SemVer ma mi pa pr _) == (SemVer ma' mi' pa' pr' _) =
+    (ma,mi,pa,pr) == (ma',mi',pa',pr')
+
+-- | Build metadata does not affect version precedence.
+instance Ord SemVer where
+  compare (SemVer ma mi pa pr _) (SemVer ma' mi' pa' pr' _) =
+    case compare (ma,mi,pa) (ma',mi',pa') of
+     LT -> LT
+     GT -> GT
+     EQ -> case (pr,pr') of
+            ([],[]) -> EQ
+            ([],_)  -> GT
+            (_,[])  -> LT
+            _       -> compare pr pr'
+
+instance Monoid SemVer where
+  mempty = SemVer 0 0 0 [] []
+  SemVer mj mn pa p m `mappend` SemVer mj' mn' pa' p' m' =
+    SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
 
 -- | > svMajor :: Lens' SemVer Int
 svMajor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
@@ -209,23 +230,6 @@ svPreRel f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
 svMeta :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 {-# INLINE svMeta #-}
-
--- | Two SemVers are equal if all fields except metadata are equal.
-instance Eq SemVer where
-  (SemVer ma mi pa pr _) == (SemVer ma' mi' pa' pr' _) =
-    (ma,mi,pa,pr) == (ma',mi',pa',pr')
-
--- | Build metadata does not affect version precedence.
-instance Ord SemVer where
-  compare (SemVer ma mi pa pr _) (SemVer ma' mi' pa' pr' _) =
-    case compare (ma,mi,pa) (ma',mi',pa') of
-     LT -> LT
-     GT -> GT
-     EQ -> case (pr,pr') of
-            ([],[]) -> EQ
-            ([],_)  -> GT
-            (_,[])  -> LT
-            _       -> compare pr pr'
 
 -- | A single unit of a Version. May be digits or a string of characters.
 -- Groups of these are called `VChunk`s, and are the identifiers separated
@@ -278,7 +282,7 @@ vRel f v = fmap (\vc -> v { _vRel = vc }) (f $ _vRel v)
 -- numbers like @1.003.04@ which make parsers quite sad.
 --
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour,
--- but so far interal tests show consistency.
+-- but so far internal tests show consistency.
 data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
 
 instance Ord Mess where
