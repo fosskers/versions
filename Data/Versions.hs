@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
@@ -59,9 +58,7 @@ module Data.Versions
     , prettySemVer
     , prettyVer
     , prettyMess
-#if (__GLASGOW_HASKELL__ > 710)
     , parseErrorPretty
-#endif
       -- * Lenses
       -- **  Traversing Text
     , _Versioning
@@ -306,11 +303,7 @@ instance Ord Mess where
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 
 -- | A synonym for the more verbose `megaparsec` error type.
-#if (__GLASGOW_HASKELL__ > 710)
 type ParsingError = ParseError (Token Text) Dec
-#else
-type ParsingError = ParseError
-#endif
 
 -- | A wrapper for a parser function. Can be composed via their
 -- Monoid instance, such that a different parser can be tried
