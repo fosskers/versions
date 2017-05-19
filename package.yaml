@@ -53,7 +53,7 @@ library:
     - Data.Versions
 
   dependencies:
-    - megaparsec >=5 && <6
+    - megaparsec >=4 && <6
 
 tests:
   versions-test:
