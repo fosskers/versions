@@ -2,7 +2,6 @@
 
 module Main where
 
-import Data.Either
 import Data.Monoid ((<>))
 import Data.Text (Text,unpack)
 import Data.Versions
@@ -163,6 +162,10 @@ incFromT = ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) @?= "1.2.4"
 patches :: Assertion
 patches = ps @?= [3,4,5]
   where ps = ["1.2.3","2.3.4","3.4.5"] ^.. each . _SemVer . svPatch
+
+isLeft :: Either t1 t -> Bool
+isLeft (Left _) = True
+isLeft _ = False
 
 {-}
 -- Need to submit patch for these, as well as Maybe instance.

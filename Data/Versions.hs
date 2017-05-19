@@ -82,7 +82,7 @@ module Data.Versions
     , _Str ) where
 
 import Data.List (intersperse)
-import Data.Semigroup
+import Data.Monoid
 import Data.Text (Text,pack,snoc)
 import Text.Megaparsec
 import Text.Megaparsec.Text
@@ -306,12 +306,16 @@ data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
 type ParsingError = ParseError (Token Text) Dec
 
 -- | A wrapper for a parser function. Can be composed via their
--- Semigroup instance, such that a different parser can be tried
+-- Monoid instance, such that a different parser can be tried
 -- if a previous one fails.
 newtype VParser = VParser { runVP :: Text -> Either ParsingError Versioning }
 
-instance Semigroup VParser where
-  (VParser f) <> (VParser g) = VParser h
+instance Monoid VParser where
+  -- | A parser which will always fail.
+  mempty = VParser $ \_ -> Ideal <$> semver ""
+
+  -- | Will attempt the right parser if the left one fails.
+  (VParser f) `mappend` (VParser g) = VParser h
     where h t = either (const (g t)) Right $ f t
 
 -- | Parse a piece of @Text@ into either an (Ideal) SemVer, a (General)
