@@ -53,6 +53,10 @@ module Data.Versions
     , semverP
     , versionP
     , messP
+      -- ** Megaparsec Parsers
+    , internalSemverP
+    , internalVersionP
+    , internalMessP
       -- * Pretty Printing
     , prettyV
     , prettySemVer
@@ -329,10 +333,11 @@ semverP = VParser $ fmap Ideal . semver
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: Text -> Either ParsingError SemVer
-semver = parse semanticVersion "Semantic Version"
+semver = parse internalSemverP "Semantic Version"
 
-semanticVersion :: Parser SemVer
-semanticVersion = p <* eof
+-- | Internal megaparsec parser of 'semverP'.
+internalSemverP :: Parser SemVer
+internalSemverP = p <* eof
   where p = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
@@ -370,10 +375,11 @@ versionP = VParser $ fmap General . version
 
 -- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParsingError Version
-version = parse versionNum "Version"
+version = parse internalVersionP "Version"
 
-versionNum :: Parser Version
-versionNum = Version <$> chunks <*> preRel <* eof
+-- | Internal megaparsec parser of 'versionP'.
+internalVersionP :: Parser Version
+internalVersionP = Version <$> chunks <*> preRel <* eof
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
@@ -381,16 +387,17 @@ messP = VParser $ fmap Complex . mess
 
 -- | Parse a (Complex) `Mess`, as defined above.
 mess :: Text -> Either ParsingError Mess
-mess = parse messNumber "Mess"
+mess = parse internalMessP "Mess"
 
-messNumber :: Parser Mess
-messNumber = try node <|> leaf
+-- | Internal megaparsec parser of 'messP'.
+internalMessP :: Parser Mess
+internalMessP = try node <|> leaf
 
 leaf :: Parser Mess
 leaf = VLeaf <$> tchunks <* eof
 
 node :: Parser Mess
-node = VNode <$> tchunks <*> sep <*> messNumber
+node = VNode <$> tchunks <*> sep <*> internalMessP
 
 tchunks :: Parser [Text]
 tchunks = (pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
