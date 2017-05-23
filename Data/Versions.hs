@@ -333,11 +333,11 @@ semverP = VParser $ fmap Ideal . semver
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: Text -> Either ParsingError SemVer
-semver = parse internalSemverP "Semantic Version"
+semver = parse (internalSemverP <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of 'semverP'.
 internalSemverP :: Parser SemVer
-internalSemverP = p <* eof
+internalSemverP = p
   where p = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
@@ -375,11 +375,11 @@ versionP = VParser $ fmap General . version
 
 -- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParsingError Version
-version = parse internalVersionP "Version"
+version = parse (internalVersionP <* eof) "Version"
 
 -- | Internal megaparsec parser of 'versionP'.
 internalVersionP :: Parser Version
-internalVersionP = Version <$> chunks <*> preRel <* eof
+internalVersionP = Version <$> chunks <*> preRel
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
@@ -387,14 +387,14 @@ messP = VParser $ fmap Complex . mess
 
 -- | Parse a (Complex) `Mess`, as defined above.
 mess :: Text -> Either ParsingError Mess
-mess = parse internalMessP "Mess"
+mess = parse (internalMessP <* eof) "Mess"
 
 -- | Internal megaparsec parser of 'messP'.
 internalMessP :: Parser Mess
 internalMessP = try node <|> leaf
 
 leaf :: Parser Mess
-leaf = VLeaf <$> tchunks <* eof
+leaf = VLeaf <$> tchunks
 
 node :: Parser Mess
 node = VNode <$> tchunks <*> sep <*> internalMessP
