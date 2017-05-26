@@ -54,9 +54,9 @@ module Data.Versions
     , versionP
     , messP
       -- ** Megaparsec Parsers
-    , internalSemverP
-    , internalVersionP
-    , internalMessP
+    , semver'
+    , version'
+    , mess'
       -- * Pretty Printing
     , prettyV
     , prettySemVer
@@ -333,11 +333,11 @@ semverP = VParser $ fmap Ideal . semver
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: Text -> Either ParsingError SemVer
-semver = parse (internalSemverP <* eof) "Semantic Version"
+semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of 'semverP'.
-internalSemverP :: Parser SemVer
-internalSemverP = p
+semver' :: Parser SemVer
+semver' = p
   where p = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
@@ -375,11 +375,11 @@ versionP = VParser $ fmap General . version
 
 -- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParsingError Version
-version = parse (internalVersionP <* eof) "Version"
+version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of 'versionP'.
-internalVersionP :: Parser Version
-internalVersionP = Version <$> chunks <*> preRel
+version' :: Parser Version
+version' = Version <$> chunks <*> preRel
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
@@ -387,17 +387,17 @@ messP = VParser $ fmap Complex . mess
 
 -- | Parse a (Complex) `Mess`, as defined above.
 mess :: Text -> Either ParsingError Mess
-mess = parse (internalMessP <* eof) "Mess"
+mess = parse (mess' <* eof) "Mess"
 
 -- | Internal megaparsec parser of 'messP'.
-internalMessP :: Parser Mess
-internalMessP = try node <|> leaf
+mess' :: Parser Mess
+mess' = try node <|> leaf
 
 leaf :: Parser Mess
 leaf = VLeaf <$> tchunks
 
 node :: Parser Mess
-node = VNode <$> tchunks <*> sep <*> internalMessP
+node = VNode <$> tchunks <*> sep <*> mess'
 
 tchunks :: Parser [Text]
 tchunks = (pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
