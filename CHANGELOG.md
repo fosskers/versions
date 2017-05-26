@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.0.2
+-----
+
+- Expose internal parsers so that they could be used in other parser programs
+  that parse version numbers in larger files.
+
 3.0.0
 -----
 - Updated for `megaparsec-5` and `ghc-8`
