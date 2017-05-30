@@ -337,8 +337,7 @@ semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of 'semverP'.
 semver' :: Parser SemVer
-semver' = p
-  where p = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
+semver' = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digits :: Parser Int
@@ -360,8 +359,18 @@ metaData :: Parser [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
 
 chunks :: Parser [VChunk]
-chunks = (oneZero <|> many (iunit <|> sunit)) `sepBy` char '.'
+chunks = chunk `sepBy` char '.'
+
+-- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
+-- since a version like @1.000.1@ would parse as @1.0.1@.
+chunk :: Parser VChunk
+chunk = try zeroWithLetters <|> oneZero <|> many (iunit <|> sunit)
   where oneZero = (:[]) . Digits . read <$> string "0"
+        zeroWithLetters = do
+          z <- Digits . read <$> string "0"
+          s <- some sunit
+          c <- chunk
+          pure $ (z : s) ++ c
 
 iunit :: Parser VUnit
 iunit = Digits . read <$> some digitChar

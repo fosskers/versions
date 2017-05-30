@@ -43,6 +43,8 @@ extra-source-files:
 ghc-options:
   - -fwarn-unused-imports
   - -fwarn-unused-binds
+  - -fwarn-name-shadowing
+  - -fwarn-unused-matches
 
 dependencies:
   - base >=4.8 && <4.10
