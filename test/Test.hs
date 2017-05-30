@@ -13,7 +13,7 @@ import Test.Tasty.HUnit
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [Text]
-goodVers = [ "1", "1.2", "1.58.0-3",  "44.0.2403.157-1"
+goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1"
            ]
 
@@ -73,6 +73,7 @@ suite = testGroup "Unit Tests"
       map (\s -> testCase (unpack s) $ isomorphV s) goodVers
     , testGroup "Comparisons" $
       testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
+      testCase "1.0rc1 < 1.0" (comp version "1.0rc1" "1.0") :
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b)
       (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
     ]

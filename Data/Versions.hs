@@ -263,7 +263,48 @@ type VChunk = [VUnit]
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1
 data Version = Version { _vChunks :: [VChunk]
-                       , _vRel    :: [VChunk] } deriving (Eq,Ord,Show)
+                       , _vRel    :: [VChunk] } deriving (Eq,Show)
+
+-- | Customized.
+instance Ord Version where
+  -- | The obvious base case.
+  compare (Version [] []) (Version [] []) = EQ
+
+  -- | If the two Versions were otherwise equal and recursed down this far,
+  -- we need to compare them by their "release" values.
+  compare (Version [] rs) (Version [] rs') = compare (Version rs []) (Version rs' [])
+
+  -- | If one side has run out of chunks to compare but the other hasn't,
+  -- the other must be newer.
+  compare (Version _ _)   (Version [] _) = GT
+  compare (Version [] _)  (Version _ _) = LT
+
+  -- | The usual case. If first VChunks of each Version is equal, then we
+  -- keep recursing. Otherwise, we don't need to check further. Consider @1.2@
+  -- compared to @1.1.3.4.5.6@.
+  compare (Version (a:as) rs) (Version (b:bs) rs') = case f a b of
+    EQ  -> compare (Version as rs) (Version bs rs')
+    res -> res
+    where f [] [] = EQ
+
+          -- | Opposite of the above. If we've recursed this far and one side has
+          -- fewer chunks, it must be the "greater" version. A Chunk break only occurs in
+          -- a switch from digits to letters and vice versa, so anything "extra" must be
+          -- an @rc@ marking or similar. Consider @1.1@ compared to @1.1rc1@.
+          f [] _  = GT
+          f _ []  = LT
+
+          -- | The usual case.
+          f (Digits n:ns) (Digits m:ms) | n > m = GT
+                                        | n < m = LT
+                                        | otherwise = f ns ms
+          f (Str n:ns) (Str m:ms) | n > m = GT
+                                  | n < m = LT
+                                  | otherwise = f ns ms
+
+          -- | An arbitrary decision to prioritize digits over letters.
+          f (Digits _ :_) (Str _ :_) = GT
+          f (Str _ :_ ) (Digits _ :_) = LT
 
 -- | > vChunks :: Lens' Version [VChunk]
 vChunks :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
