@@ -88,6 +88,7 @@ module Data.Versions
 import Data.List (intersperse)
 import Data.Monoid
 import Data.Text (Text,pack,snoc)
+import Data.Word
 import Text.Megaparsec
 import Text.Megaparsec.Text
 
@@ -121,11 +122,12 @@ instance Ord Versioning where
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
-vFromS (SemVer m i p r _) = Version [[Digits m], [Digits i], [Digits p]] r
+vFromS (SemVer m i p r _) = Version Nothing [[Digits m], [Digits i], [Digits p]] r
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
-mFromV (Version v r) = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
+mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
+  where affix = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 
 -- | Traverse some Text for its inner versioning.
 --
@@ -262,28 +264,43 @@ type VChunk = [VUnit]
 -- Generally conforms to the @x.x.x-x@ pattern.
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1
-data Version = Version { _vChunks :: [VChunk]
+data Version = Version { _vEpoch  :: Maybe Word64
+                       , _vChunks :: [VChunk]
                        , _vRel    :: [VChunk] } deriving (Eq,Show)
+
+-- | Set a `Version`'s epoch to `Nothing`.
+wipe :: Version -> Version
+wipe v = v { _vEpoch = Nothing }
 
 -- | Customized.
 instance Ord Version where
   -- | The obvious base case.
-  compare (Version [] []) (Version [] []) = EQ
+  compare (Version _ [] []) (Version _ [] []) = EQ
+
+  -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
+  -- so we need to compare their actual version numbers.
+  compare v0@(Version (Just 0) _ _) v1@(Version Nothing _ _) = compare (wipe v0) v1
+  compare v0@(Version Nothing _ _) v1@(Version (Just 0) _ _) = compare v0 (wipe v1)
+
+  -- | If two epochs are equal, we need to compare their actual version numbers.
+  -- Otherwise, the comparison of the epochs is the only thing that matters.
+  compare v0@(Version (Just n) _ _) v1@(Version (Just m) _ _) | n == m = compare (wipe v0) (wipe v1)
+                                                              | otherwise = compare n m
 
   -- | If the two Versions were otherwise equal and recursed down this far,
   -- we need to compare them by their "release" values.
-  compare (Version [] rs) (Version [] rs') = compare (Version rs []) (Version rs' [])
+  compare (Version _ [] rs) (Version _ [] rs') = compare (Version Nothing rs []) (Version Nothing rs' [])
 
   -- | If one side has run out of chunks to compare but the other hasn't,
   -- the other must be newer.
-  compare (Version _ _)   (Version [] _) = GT
-  compare (Version [] _)  (Version _ _) = LT
+  compare (Version _ _ _)  (Version _ [] _) = GT
+  compare (Version _ [] _) (Version _ _ _)  = LT
 
   -- | The usual case. If first VChunks of each Version is equal, then we
   -- keep recursing. Otherwise, we don't need to check further. Consider @1.2@
   -- compared to @1.1.3.4.5.6@.
-  compare (Version (a:as) rs) (Version (b:bs) rs') = case f a b of
-    EQ  -> compare (Version as rs) (Version bs rs')
+  compare (Version _ (a:as) rs) (Version _ (b:bs) rs') = case f a b of
+    EQ  -> compare (Version Nothing as rs) (Version Nothing bs rs')
     res -> res
     where f [] [] = EQ
 
@@ -429,7 +446,10 @@ version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of 'versionP'.
 version' :: Parser Version
-version' = Version <$> chunks <*> preRel
+version' = Version <$> optional (try epoch) <*> chunks <*> preRel
+
+epoch :: Parser Word64
+epoch = read <$> (some digitChar <* char ':')
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
@@ -479,9 +499,10 @@ prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer (Version cs pr) = mconcat $ ver <> pr'
+prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
   where ver = intersperse "." $ chunksAsT cs
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
+        ep' = maybe "" (\e -> showt e <> ":") ep
 
 -- | Convert a `Mess` back to its textual representation.
 prettyMess :: Mess -> Text

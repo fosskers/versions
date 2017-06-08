@@ -14,13 +14,11 @@ import Test.Tasty.HUnit
 -- | These don't need to parse as a SemVer.
 goodVers :: [Text]
 goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
-           , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1"
+           , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1", "1:0.10.16-3"
            ]
 
 messes :: [Text]
-messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "1:0.10.16-3"
-         , "20.26.1_0-2"
-         ]
+messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2" ]
 
 messComps :: [Text]
 messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
@@ -91,8 +89,8 @@ suite = testGroup "Unit Tests"
       , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1+1"
       , testCase "1.2.3r1 is Version" $ check $ isVersion <$> parseV "1.2.3r1"
       , testCase "0.25-2 is Version" $ check $ isVersion <$> parseV "0.25-2"
+      , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> parseV "1:1.2.3-1"
       , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> parseV "1.2.3+1-1"
-      , testCase "1:1.2.3-1 is Mess" $ check $ isMess <$> parseV "1:1.2.3-1"
       , testCase "000.007-1 is Mess" $ check $ isMess <$> parseV "000.007-1"
       , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> parseV "20.26.1_0-2"
       ]
@@ -155,7 +153,7 @@ incPatch = (v1 & _Ideal . svPatch %~ (+ 1)) @?= v2
 -- | Nothing should happen.
 noInc :: Assertion
 noInc = (v & _Ideal . svPatch %~ (+ 1)) @?= v
-  where v = General $ Version [] []
+  where v = General $ Version Nothing [] []
 
 incFromT :: Assertion
 incFromT = ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) @?= "1.2.4"
