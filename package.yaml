@@ -54,6 +54,8 @@ library:
   exposed-modules:
     - Data.Versions
 
+  other-modules: []
+
   dependencies:
     - megaparsec >=4 && <6
 

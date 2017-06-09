@@ -41,8 +41,6 @@ source-repository head
 library
   exposed-modules:
       Data.Versions
-  other-modules:
-      Paths_versions
   build-depends:
       base >=4.8 && <4.10
     , text >=1.2 && <1.3

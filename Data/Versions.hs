@@ -79,6 +79,7 @@ module Data.Versions
     , svPreRel
     , svMeta
       -- ** (General) Version Lenses
+    , vEpoch
     , vChunks
     , vRel
       -- ** Misc. Lenses / Traversals
@@ -88,7 +89,6 @@ module Data.Versions
 import Data.List (intersperse)
 import Data.Monoid
 import Data.Text (Text,pack,snoc)
-import Data.Word
 import Text.Megaparsec
 import Text.Megaparsec.Text
 
@@ -261,10 +261,11 @@ type VChunk = [VUnit]
 -- | A (General) Version.
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
 -- from version to version.
--- Generally conforms to the @x.x.x-x@ pattern.
+-- Generally conforms to the @x.x.x-x@ pattern, and may optionally have an /epoch/.
+-- These are prefixes marked by a colon, like in @1:2.3.4@.
 --
--- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1
-data Version = Version { _vEpoch  :: Maybe Word64
+-- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
+data Version = Version { _vEpoch  :: Maybe Int
                        , _vChunks :: [VChunk]
                        , _vRel    :: [VChunk] } deriving (Eq,Show)
 
@@ -323,6 +324,10 @@ instance Ord Version where
           f (Digits _ :_) (Str _ :_) = GT
           f (Str _ :_ ) (Digits _ :_) = LT
 
+-- | > vEpoch :: Lens' Version (Maybe Int)
+vEpoch :: Functor f => (Maybe Int -> f (Maybe Int)) -> Version -> f Version
+vEpoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
+
 -- | > vChunks :: Lens' Version [VChunk]
 vChunks :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
 vChunks f v = fmap (\vc -> v { _vChunks = vc }) (f $ _vChunks v)
@@ -330,7 +335,7 @@ vChunks f v = fmap (\vc -> v { _vChunks = vc }) (f $ _vChunks v)
 
 -- | > vRel :: Lens' Version [VChunk]
 vRel :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
-vRel f v = fmap (\vc -> v { _vRel = vc }) (f $ _vRel v)
+vRel f v = fmap (\vr -> v { _vRel = vr }) (f $ _vRel v)
 {-# INLINE vRel #-}
 
 -- | A (Complex) Mess.
@@ -448,7 +453,7 @@ version = parse (version' <* eof) "Version"
 version' :: Parser Version
 version' = Version <$> optional (try epoch) <*> chunks <*> preRel
 
-epoch :: Parser Word64
+epoch :: Parser Int
 epoch = read <$> (some digitChar <* char ':')
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
