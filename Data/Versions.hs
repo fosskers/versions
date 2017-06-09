@@ -283,6 +283,9 @@ instance Ord Version where
   compare v0@(Version (Just 0) _ _) v1@(Version Nothing _ _) = compare (wipe v0) v1
   compare v0@(Version Nothing _ _) v1@(Version (Just 0) _ _) = compare v0 (wipe v1)
 
+  compare (Version (Just _) _ _) (Version Nothing _ _) = GT
+  compare (Version Nothing _ _) (Version (Just _) _ _) = LT
+
   -- | If two epochs are equal, we need to compare their actual version numbers.
   -- Otherwise, the comparison of the epochs is the only thing that matters.
   compare v0@(Version (Just n) _ _) v1@(Version (Just m) _ _) | n == m = compare (wipe v0) (wipe v1)

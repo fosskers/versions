@@ -72,6 +72,9 @@ suite = testGroup "Unit Tests"
     , testGroup "Comparisons" $
       testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
       testCase "1.0rc1 < 1.0" (comp version "1.0rc1" "1.0") :
+      testCase "1.0 < 1:1.0" (comp version "1.0" "1:1.0") :
+      testCase "1.1 < 1:1.0" (comp version "1.1" "1:1.0") :
+      testCase "1.1 < 1:1.1" (comp version "1.1" "1:1.1") :
       map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b)
       (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
     ]
