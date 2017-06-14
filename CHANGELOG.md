@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.1.1
+-----
+- Added instances for common typeclasses: `Generic`, `NFData`, and
+  `Hashable`. This is to avoid having users define these instances themselves
+  as orphans. If there are more instances you want added, please let me know.
+  `Data` was left out on purpose.
+
 3.1.0
 -----
 - Added support for *epoch* numbers in the `Version` type. These are numbers
