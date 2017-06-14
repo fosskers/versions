@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 
 -- |
 -- Module    : Data.Versions
@@ -86,9 +87,12 @@ module Data.Versions
     , _Digits
     , _Str ) where
 
+import Control.DeepSeq
+import Data.Hashable
 import Data.List (intersperse)
 import Data.Monoid
 import Data.Text (Text,pack,snoc)
+import GHC.Generics
 import Text.Megaparsec
 import Text.Megaparsec.Text
 
@@ -98,7 +102,8 @@ import Text.Megaparsec.Text
 -- types. This allows each subtype to have its own parser, and for said
 -- parsers to be composed. This is useful for specifying custom behaviour
 -- for when a certain parser fails.
-data Versioning = Ideal SemVer | General Version | Complex Mess deriving (Eq,Show)
+data Versioning = Ideal SemVer | General Version | Complex Mess
+  deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | Comparison of @Ideal@s is always well defined.
 --
@@ -188,7 +193,7 @@ data SemVer = SemVer { _svMajor  :: Int
                      , _svMinor  :: Int
                      , _svPatch  :: Int
                      , _svPreRel :: [VChunk]
-                     , _svMeta   :: [VChunk] } deriving (Show)
+                     , _svMeta   :: [VChunk] } deriving (Show,Generic,NFData,Hashable)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
@@ -240,7 +245,7 @@ svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 -- | A single unit of a Version. May be digits or a string of characters.
 -- Groups of these are called `VChunk`s, and are the identifiers separated
 -- by periods in the source.
-data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord)
+data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
 -- | > _Digits :: Traversal' VUnit Int
 _Digits :: Applicative f => (Int -> f Int) -> VUnit -> f VUnit
@@ -267,7 +272,7 @@ type VChunk = [VUnit]
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
 data Version = Version { _vEpoch  :: Maybe Int
                        , _vChunks :: [VChunk]
-                       , _vRel    :: [VChunk] } deriving (Eq,Show)
+                       , _vRel    :: [VChunk] } deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | Set a `Version`'s epoch to `Nothing`.
 wipe :: Version -> Version
@@ -353,7 +358,7 @@ vRel f v = fmap (\vr -> v { _vRel = vr }) (f $ _vRel v)
 --
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour,
 -- but so far internal tests show consistency.
-data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show)
+data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show,Generic,NFData,Hashable)
 
 instance Ord Mess where
   compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
@@ -370,7 +375,7 @@ instance Ord Mess where
 -- * A hyphen (-).
 -- * A plus (+). Stop using this outside of metadata if you are. Example: @10.2+0.93+1-1@
 -- * An underscore (_). Stop using this if you are.
-data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show)
+data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | A synonym for the more verbose `megaparsec` error type.
 type ParsingError = ParseError (Token Text) Dec
