@@ -14,8 +14,7 @@ addons:
 # change flags or use --stack-yaml to point to a different file.
 env:
   - ARGS="--stack-yaml stack-710.yaml"
-  - ARGS="--resolver lts-7.24"
-  - ARGS="--resolver lts-8.15"
+  - ARGS="--resolver lts-9.0"
 
 before_install:
 # Download and unpack the stack executable
