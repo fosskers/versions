@@ -91,10 +91,11 @@ import Control.DeepSeq
 import Data.Hashable
 import Data.List (intersperse)
 import Data.Monoid
-import Data.Text (Text,pack,snoc)
+import Data.Text (Text,pack,unpack,snoc)
+import Data.Void
 import GHC.Generics
 import Text.Megaparsec
-import Text.Megaparsec.Text
+import Text.Megaparsec.Char
 
 ---
 
@@ -378,7 +379,7 @@ instance Ord Mess where
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | A synonym for the more verbose `megaparsec` error type.
-type ParsingError = ParseError (Token Text) Dec
+type ParsingError = ParseError (Token Text) Void
 
 -- | A wrapper for a parser function. Can be composed via their
 -- Monoid instance, such that a different parser can be tried
@@ -407,46 +408,46 @@ semver :: Text -> Either ParsingError SemVer
 semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of 'semverP'.
-semver' :: Parser SemVer
+semver' :: Parsec Void Text SemVer
 semver' = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
-digits :: Parser Int
-digits = read <$> (string "0" <|> some digitChar)
+digits :: Parsec Void Text Int
+digits = read <$> ((unpack <$> string "0") <|> some digitChar)
 
-major :: Parser Int
+major :: Parsec Void Text Int
 major = digits <* char '.'
 
-minor :: Parser Int
+minor :: Parsec Void Text Int
 minor = major
 
-patch :: Parser Int
+patch :: Parsec Void Text Int
 patch = digits
 
-preRel :: Parser [VChunk]
+preRel :: Parsec Void Text [VChunk]
 preRel = (char '-' *> chunks) <|> pure []
 
-metaData :: Parser [VChunk]
+metaData :: Parsec Void Text [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
 
-chunks :: Parser [VChunk]
+chunks :: Parsec Void Text [VChunk]
 chunks = chunk `sepBy` char '.'
 
 -- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
 -- since a version like @1.000.1@ would parse as @1.0.1@.
-chunk :: Parser VChunk
+chunk :: Parsec Void Text VChunk
 chunk = try zeroWithLetters <|> oneZero <|> many (iunit <|> sunit)
-  where oneZero = (:[]) . Digits . read <$> string "0"
+  where oneZero = (:[]) . Digits . read . unpack <$> string "0"
         zeroWithLetters = do
-          z <- Digits . read <$> string "0"
+          z <- Digits . read . unpack <$> string "0"
           s <- some sunit
           c <- chunk
           pure $ (z : s) ++ c
 
-iunit :: Parser VUnit
+iunit :: Parsec Void Text VUnit
 iunit = Digits . read <$> some digitChar
 
-sunit :: Parser VUnit
+sunit :: Parsec Void Text VUnit
 sunit = Str . pack <$> some letterChar
 
 -- | A wrapped `Version` parser. Can be composed with other parsers.
@@ -458,10 +459,10 @@ version :: Text -> Either ParsingError Version
 version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of 'versionP'.
-version' :: Parser Version
+version' :: Parsec Void Text Version
 version' = Version <$> optional (try epoch) <*> chunks <*> preRel
 
-epoch :: Parser Int
+epoch :: Parsec Void Text Int
 epoch = read <$> (some digitChar <* char ':')
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
@@ -473,19 +474,19 @@ mess :: Text -> Either ParsingError Mess
 mess = parse (mess' <* eof) "Mess"
 
 -- | Internal megaparsec parser of 'messP'.
-mess' :: Parser Mess
+mess' :: Parsec Void Text Mess
 mess' = try node <|> leaf
 
-leaf :: Parser Mess
+leaf :: Parsec Void Text Mess
 leaf = VLeaf <$> tchunks
 
-node :: Parser Mess
+node :: Parsec Void Text Mess
 node = VNode <$> tchunks <*> sep <*> mess'
 
-tchunks :: Parser [Text]
+tchunks :: Parsec Void Text [Text]
 tchunks = (pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
 
-sep :: Parser VSep
+sep :: Parsec Void Text VSep
 sep = choice [ VColon  <$ char ':'
              , VHyphen <$ char '-'
              , VPlus   <$ char '+'

@@ -1,9 +1,10 @@
-resolver: lts-8.18
+resolver: lts-9.0
 
 packages:
 - '.'
 
-extra-deps: []
+extra-deps:
+  - megaparsec-6.0.0
 
 flags: {}
 
