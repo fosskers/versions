@@ -4,7 +4,8 @@ packages:
 - '.'
 
 extra-deps:
-  - megaparsec-5.3.0
+  - megaparsec-6.0.0
+  - parser-combinators-0.1.0
 
 flags: {}
 

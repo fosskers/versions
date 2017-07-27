@@ -1,5 +1,5 @@
 name: versions
-version: '3.1.1'
+version: '3.2.0'
 synopsis: Types and parsers for software version numbers.
 description: ! 'A library for parsing and comparing software version numbers.
 
@@ -47,7 +47,7 @@ ghc-options:
   - -fwarn-unused-matches
 
 dependencies:
-  - base >=4.8 && <4.10
+  - base >=4.8 && <4.11
   - text >=1.2 && <1.3
 
 library:
@@ -55,7 +55,7 @@ library:
     - Data.Versions
   other-modules: []
   dependencies:
-    - megaparsec >=4 && <6
+    - megaparsec >=6 && <7
     - deepseq >= 1.4 && < 1.5
     - hashable >= 1.2 && < 1.3
 

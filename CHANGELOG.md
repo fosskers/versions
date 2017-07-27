@@ -1,6 +1,10 @@
 Changelog
 =========
 
+3.2.0
+-----
+- Updated for `megaparsec-6` and GHC 8.2.
+
 3.1.1
 -----
 - Added instances for common typeclasses: `Generic`, `NFData`, and
