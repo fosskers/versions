@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 
@@ -65,24 +66,22 @@ module Data.Versions
     , prettyMess
     , parseErrorPretty
       -- * Lenses
+    , Lens'
+    , Traversal'
+    , SemVerLike(..)
       -- **  Traversing Text
     , _Versioning
     , _SemVer
     , _Version
+    , _Mess
       -- ** Versioning Traversals
     , _Ideal
     , _General
     , _Complex
       -- ** (Ideal) SemVer Lenses
-    , svMajor
-    , svMinor
-    , svPatch
-    , svPreRel
     , svMeta
       -- ** (General) Version Lenses
     , vEpoch
-    , vChunks
-    , vRel
       -- ** Misc. Lenses / Traversals
     , _Digits
     , _Str ) where
@@ -140,44 +139,60 @@ mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
 
 -- | Traverse some Text for its inner versioning.
 --
--- > _Versioning :: Traversal' Text Versioning
---
 -- > ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) == "1.2.4"
-_Versioning :: Applicative f => (Versioning -> f Versioning) -> T.Text -> f T.Text
+_Versioning :: Traversal' T.Text Versioning
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
 {-# INLINE _Versioning #-}
 
 -- | Traverse some Text for its inner SemVer.
---
--- > _SemVer :: Traversal' Text SemVer
-_SemVer :: Applicative f => (SemVer -> f SemVer) -> T.Text -> f T.Text
+_SemVer :: Traversal' T.Text SemVer
 _SemVer f t = either (const (pure t)) (fmap prettySemVer . f) $ semver t
 {-# INLINE _SemVer #-}
 
 -- | Traverse some Text for its inner Version.
---
--- > _Version :: Traversal' Text Version
-_Version :: Applicative f => (Version -> f Version) -> T.Text -> f T.Text
+_Version :: Traversal' T.Text Version
 _Version f t = either (const (pure t)) (fmap prettyVer . f) $ version t
 {-# INLINE _Version #-}
 
--- | > _Ideal :: Traversal' Versioning SemVer
-_Ideal :: Applicative f => (SemVer -> f SemVer) -> Versioning -> f Versioning
+-- | Traverse some Text for its inner Mess.
+_Mess :: Traversal' T.Text Mess
+_Mess f t = either (const (pure t)) (fmap prettyMess . f) $ mess t
+
+_Ideal :: Traversal' Versioning SemVer
 _Ideal f (Ideal s) = Ideal <$> f s
 _Ideal _ v = pure v
 {-# INLINE _Ideal #-}
 
--- | > _General :: Traversal' Versioning Version
-_General :: Applicative f => (Version -> f Version) -> Versioning -> f Versioning
+_General :: Traversal' Versioning Version
 _General f (General v) = General <$> f v
 _General _ v = pure v
 {-# INLINE _General #-}
 
--- | > _Complex :: Traversal' Versioning Mess
-_Complex :: Applicative f => (Mess -> f Mess) -> Versioning -> f Versioning
+_Complex :: Traversal' Versioning Mess
 _Complex f (Complex m) = Complex <$> f m
 _Complex _ v = pure v
 {-# INLINE _Complex #-}
+
+-- | Simple Lenses compatible with both lens and microlens.
+type Lens' s a = forall f. Functor f => (a -> f a) -> s -> f s
+
+-- | Simple Traversals compatible with both lens and microlens.
+type Traversal' s a = forall f. Applicative f => (a -> f a) -> s -> f s
+
+-- | Version types other than `SemVer` /may/ be able to yield the same
+-- information that `SemVer` supplies readily. For instance, given the
+-- `Version` @1.2.3.4.5@, we can imagine wanting to increment the
+-- minor number:
+--
+-- @
+-- λ "1.2.3.4.5" & _Version . minor %~ (+ 1)
+-- "1.3.3.4.5"
+-- @
+class SemVerLike v where
+  major   :: Traversal' v Word
+  minor   :: Traversal' v Word
+  patch   :: Traversal' v Word
+  release :: Traversal' v [VChunk]
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
@@ -223,28 +238,20 @@ instance Monoid SemVer where
   SemVer mj mn pa p m `mappend` SemVer mj' mn' pa' p' m' =
     SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
 
--- | > svMajor :: Lens' SemVer Word
-svMajor :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
-svMajor f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
-{-# INLINE svMajor #-}
+instance SemVerLike SemVer where
+  major f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
+  {-# INLINE major #-}
 
--- | > svMinor :: Lens' SemVer Word
-svMinor :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
-svMinor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
-{-# INLINE svMinor #-}
+  minor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
+  {-# INLINE minor #-}
 
--- | > svPatch :: Lens' SemVer Word
-svPatch :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
-svPatch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
-{-# INLINE svPatch #-}
+  patch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
+  {-# INLINE patch #-}
 
--- | > svPreRel :: Lens' SemVer Word
-svPreRel :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
-svPreRel f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
-{-# INLINE svPreRel #-}
+  release f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
+  {-# INLINE release #-}
 
--- | > svMeta :: Lens' SemVer Word
-svMeta :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
+svMeta :: Lens' SemVer [VChunk]
 svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 {-# INLINE svMeta #-}
 
@@ -348,19 +355,25 @@ instance Ord Version where
           f (Digits _ :_) (Str _ :_) = GT
           f (Str _ :_ ) (Digits _ :_) = LT
 
--- | > vEpoch :: Lens' Version (Maybe Word)
-vEpoch :: Functor f => (Maybe Word -> f (Maybe Word)) -> Version -> f Version
+instance SemVerLike Version where
+  major f (Version e ([Digits n] : cs) rs) = (\n' -> Version e ([Digits n'] : cs) rs) <$> f n
+  major _ v = pure v
+  {-# INLINE major #-}
+
+  minor f (Version e (c : [Digits n] : cs) rs) = (\n' -> Version e (c : [Digits n'] : cs) rs) <$> f n
+  minor _ v = pure v
+  {-# INLINE minor #-}
+
+  patch f (Version e (c : d : [Digits n] : cs) rs) = (\n' -> Version e (c : d : [Digits n'] : cs) rs) <$> f n
+  patch _ v = pure v
+  {-# INLINE patch #-}
+
+  release f v = fmap (\vr -> v { _vRel = vr }) (f $ _vRel v)
+  {-# INLINE release #-}
+
+vEpoch :: Lens' Version (Maybe Word)
 vEpoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
-
--- | > vChunks :: Lens' Version [VChunk]
-vChunks :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
-vChunks f v = fmap (\vc -> v { _vChunks = vc }) (f $ _vChunks v)
-{-# INLINE vChunks #-}
-
--- | > vRel :: Lens' Version [VChunk]
-vRel :: Functor f => ([VChunk] -> f [VChunk]) -> Version -> f Version
-vRel f v = fmap (\vr -> v { _vRel = vr }) (f $ _vRel v)
-{-# INLINE vRel #-}
+{-# INLINE vEpoch #-}
 
 -- | A (Complex) Mess.
 -- This is a /descriptive/ parser, based on examples of stupidly
@@ -424,20 +437,20 @@ semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of 'semverP'.
 semver' :: Parsec Void T.Text SemVer
-semver' = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
+semver' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digitsP :: Parsec Void T.Text Word
 digitsP = read <$> ((T.unpack <$> string "0") <|> some digitChar)
 
-major :: Parsec Void T.Text Word
-major = digitsP <* char '.'
+majorP :: Parsec Void T.Text Word
+majorP = digitsP <* char '.'
 
-minor :: Parsec Void T.Text Word
-minor = major
+minorP :: Parsec Void T.Text Word
+minorP = majorP
 
-patch :: Parsec Void T.Text Word
-patch = digitsP
+patchP :: Parsec Void T.Text Word
+patchP = digitsP
 
 preRel :: Parsec Void T.Text [VChunk]
 preRel = (char '-' *> chunks) <|> pure []
