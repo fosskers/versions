@@ -40,7 +40,7 @@ module Data.Versions
     , SemVer(..)
     , Version(..)
     , Mess(..)
-    , VUnit(..)
+    , VUnit, digits, str
     , VChunk
     , VSep(..)
     , VParser(..)
@@ -87,16 +87,18 @@ module Data.Versions
     , _Digits
     , _Str ) where
 
-import Control.DeepSeq
-import Data.Hashable
-import Data.List (intersperse)
-import Data.Monoid
-import Data.Text (Text,pack,unpack,snoc)
-import Data.Void
-import Data.Word (Word)
-import GHC.Generics
-import Text.Megaparsec
-import Text.Megaparsec.Char
+import           Control.DeepSeq
+import           Data.Bool (bool)
+import           Data.Char (isAlpha)
+import           Data.Hashable
+import           Data.List (intersperse)
+import           Data.Monoid
+import qualified Data.Text as T
+import           Data.Void
+import           Data.Word (Word)
+import           GHC.Generics
+import           Text.Megaparsec
+import           Text.Megaparsec.Char
 
 ---
 
@@ -141,21 +143,21 @@ mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
 -- > _Versioning :: Traversal' Text Versioning
 --
 -- > ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) == "1.2.4"
-_Versioning :: Applicative f => (Versioning -> f Versioning) -> Text -> f Text
+_Versioning :: Applicative f => (Versioning -> f Versioning) -> T.Text -> f T.Text
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
 {-# INLINE _Versioning #-}
 
 -- | Traverse some Text for its inner SemVer.
 --
 -- > _SemVer :: Traversal' Text SemVer
-_SemVer :: Applicative f => (SemVer -> f SemVer) -> Text -> f Text
+_SemVer :: Applicative f => (SemVer -> f SemVer) -> T.Text -> f T.Text
 _SemVer f t = either (const (pure t)) (fmap prettySemVer . f) $ semver t
 {-# INLINE _SemVer #-}
 
 -- | Traverse some Text for its inner Version.
 --
 -- > _Version :: Traversal' Text Version
-_Version :: Applicative f => (Version -> f Version) -> Text -> f Text
+_Version :: Applicative f => (Version -> f Version) -> T.Text -> f T.Text
 _Version f t = either (const (pure t)) (fmap prettyVer . f) $ version t
 {-# INLINE _Version #-}
 
@@ -221,27 +223,27 @@ instance Monoid SemVer where
   SemVer mj mn pa p m `mappend` SemVer mj' mn' pa' p' m' =
     SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
 
--- | > svMajor :: Lens' SemVer Int
+-- | > svMajor :: Lens' SemVer Word
 svMajor :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
 svMajor f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
 {-# INLINE svMajor #-}
 
--- | > svMinor :: Lens' SemVer Int
+-- | > svMinor :: Lens' SemVer Word
 svMinor :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
 svMinor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
 {-# INLINE svMinor #-}
 
--- | > svPatch :: Lens' SemVer Int
+-- | > svPatch :: Lens' SemVer Word
 svPatch :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
 svPatch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
 {-# INLINE svPatch #-}
 
--- | > svPreRel :: Lens' SemVer Int
+-- | > svPreRel :: Lens' SemVer Word
 svPreRel :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svPreRel f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
 {-# INLINE svPreRel #-}
 
--- | > svMeta :: Lens' SemVer Int
+-- | > svMeta :: Lens' SemVer Word
 svMeta :: Functor f => ([VChunk] -> f [VChunk]) -> SemVer -> f SemVer
 svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 {-# INLINE svMeta #-}
@@ -249,17 +251,25 @@ svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 -- | A single unit of a Version. May be digits or a string of characters.
 -- Groups of these are called `VChunk`s, and are the identifiers separated
 -- by periods in the source.
-data VUnit = Digits Word | Str Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
+data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
--- | > _Digits :: Traversal' VUnit Int
+-- | Smart constructor for a `VUnit` made of digits.
+digits :: Word -> VUnit
+digits = Digits
+
+-- | Smart constructor for a `VUnit` made of letters.
+str :: T.Text -> Maybe VUnit
+str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
+
+-- | > _Digits :: Traversal' VUnit Word
 _Digits :: Applicative f => (Word -> f Word) -> VUnit -> f VUnit
 _Digits f (Digits i) = Digits <$> f i
 _Digits _ v = pure v
 {-# INLINE _Digits #-}
 
 -- | > _Str :: Traversal' VUnit Text
-_Str :: Applicative f => (Text -> f Text) -> VUnit -> f VUnit
-_Str f (Str t) = Str <$> f t
+_Str :: Applicative f => (T.Text -> f T.Text) -> VUnit -> f VUnit
+_Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
 _Str _ v = pure v
 {-# INLINE _Str #-}
 
@@ -338,7 +348,7 @@ instance Ord Version where
           f (Digits _ :_) (Str _ :_) = GT
           f (Str _ :_ ) (Digits _ :_) = LT
 
--- | > vEpoch :: Lens' Version (Maybe Int)
+-- | > vEpoch :: Lens' Version (Maybe Word)
 vEpoch :: Functor f => (Maybe Word -> f (Maybe Word)) -> Version -> f Version
 vEpoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 
@@ -364,7 +374,7 @@ vRel f v = fmap (\vr -> v { _vRel = vr }) (f $ _vRel v)
 --
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour,
 -- but so far internal tests show consistency.
-data Mess = VLeaf [Text] | VNode [Text] VSep Mess deriving (Eq,Show,Generic,NFData,Hashable)
+data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess deriving (Eq,Show,Generic,NFData,Hashable)
 
 instance Ord Mess where
   compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
@@ -384,12 +394,12 @@ instance Ord Mess where
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | A synonym for the more verbose `megaparsec` error type.
-type ParsingError = ParseError (Token Text) Void
+type ParsingError = ParseError (Token T.Text) Void
 
 -- | A wrapper for a parser function. Can be composed via their
 -- Monoid instance, such that a different parser can be tried
 -- if a previous one fails.
-newtype VParser = VParser { runVP :: Text -> Either ParsingError Versioning }
+newtype VParser = VParser { runVP :: T.Text -> Either ParsingError Versioning }
 
 instance Monoid VParser where
   -- | A parser which will always fail.
@@ -401,7 +411,7 @@ instance Monoid VParser where
 
 -- | Parse a piece of @Text@ into either an (Ideal) SemVer, a (General)
 -- Version, or a (Complex) Mess.
-parseV :: Text -> Either ParsingError Versioning
+parseV :: T.Text -> Either ParsingError Versioning
 parseV = runVP $ semverP <> versionP <> messP
 
 -- | A wrapped `SemVer` parser. Can be composed with other parsers.
@@ -409,65 +419,65 @@ semverP :: VParser
 semverP = VParser $ fmap Ideal . semver
 
 -- | Parse a (Ideal) Semantic Version.
-semver :: Text -> Either ParsingError SemVer
+semver :: T.Text -> Either ParsingError SemVer
 semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of 'semverP'.
-semver' :: Parsec Void Text SemVer
+semver' :: Parsec Void T.Text SemVer
 semver' = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
-digits :: Parsec Void Text Word
-digits = read <$> ((unpack <$> string "0") <|> some digitChar)
+digitsP :: Parsec Void T.Text Word
+digitsP = read <$> ((T.unpack <$> string "0") <|> some digitChar)
 
-major :: Parsec Void Text Word
-major = digits <* char '.'
+major :: Parsec Void T.Text Word
+major = digitsP <* char '.'
 
-minor :: Parsec Void Text Word
+minor :: Parsec Void T.Text Word
 minor = major
 
-patch :: Parsec Void Text Word
-patch = digits
+patch :: Parsec Void T.Text Word
+patch = digitsP
 
-preRel :: Parsec Void Text [VChunk]
+preRel :: Parsec Void T.Text [VChunk]
 preRel = (char '-' *> chunks) <|> pure []
 
-metaData :: Parsec Void Text [VChunk]
+metaData :: Parsec Void T.Text [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
 
-chunks :: Parsec Void Text [VChunk]
+chunks :: Parsec Void T.Text [VChunk]
 chunks = chunk `sepBy` char '.'
 
 -- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
 -- since a version like @1.000.1@ would parse as @1.0.1@.
-chunk :: Parsec Void Text VChunk
+chunk :: Parsec Void T.Text VChunk
 chunk = try zeroWithLetters <|> oneZero <|> many (iunit <|> sunit)
-  where oneZero = (:[]) . Digits . read . unpack <$> string "0"
+  where oneZero = (:[]) . Digits . read . T.unpack <$> string "0"
         zeroWithLetters = do
-          z <- Digits . read . unpack <$> string "0"
+          z <- Digits . read . T.unpack <$> string "0"
           s <- some sunit
           c <- chunk
           pure $ (z : s) ++ c
 
-iunit :: Parsec Void Text VUnit
+iunit :: Parsec Void T.Text VUnit
 iunit = Digits . read <$> some digitChar
 
-sunit :: Parsec Void Text VUnit
-sunit = Str . pack <$> some letterChar
+sunit :: Parsec Void T.Text VUnit
+sunit = Str . T.pack <$> some letterChar
 
 -- | A wrapped `Version` parser. Can be composed with other parsers.
 versionP :: VParser
 versionP = VParser $ fmap General . version
 
 -- | Parse a (General) `Version`, as defined above.
-version :: Text -> Either ParsingError Version
+version :: T.Text -> Either ParsingError Version
 version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of 'versionP'.
-version' :: Parsec Void Text Version
+version' :: Parsec Void T.Text Version
 version' = Version <$> optional (try epoch) <*> chunks <*> preRel
 
-epoch :: Parsec Void Text Word
+epoch :: Parsec Void T.Text Word
 epoch = read <$> (some digitChar <* char ':')
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
@@ -475,23 +485,23 @@ messP :: VParser
 messP = VParser $ fmap Complex . mess
 
 -- | Parse a (Complex) `Mess`, as defined above.
-mess :: Text -> Either ParsingError Mess
+mess :: T.Text -> Either ParsingError Mess
 mess = parse (mess' <* eof) "Mess"
 
 -- | Internal megaparsec parser of 'messP'.
-mess' :: Parsec Void Text Mess
+mess' :: Parsec Void T.Text Mess
 mess' = try node <|> leaf
 
-leaf :: Parsec Void Text Mess
+leaf :: Parsec Void T.Text Mess
 leaf = VLeaf <$> tchunks
 
-node :: Parsec Void Text Mess
+node :: Parsec Void T.Text Mess
 node = VNode <$> tchunks <*> sep <*> mess'
 
-tchunks :: Parsec Void Text [Text]
-tchunks = (pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
+tchunks :: Parsec Void T.Text [T.Text]
+tchunks = (T.pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
 
-sep :: Parsec Void Text VSep
+sep :: Parsec Void T.Text VSep
 sep = choice [ VColon  <$ char ':'
              , VHyphen <$ char '-'
              , VPlus   <$ char '+'
@@ -504,32 +514,32 @@ sepCh VPlus   = '+'
 sepCh VUnder  = '_'
 
 -- | Convert any parsed Versioning type to its textual representation.
-prettyV :: Versioning -> Text
+prettyV :: Versioning -> T.Text
 prettyV (Ideal sv)  = prettySemVer sv
 prettyV (General v) = prettyVer v
 prettyV (Complex m) = prettyMess m
 
 -- | Convert a `SemVer` back to its textual representation.
-prettySemVer :: SemVer -> Text
+prettySemVer :: SemVer -> T.Text
 prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
 
 -- | Convert a `Version` back to its textual representation.
-prettyVer :: Version -> Text
+prettyVer :: Version -> T.Text
 prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
   where ver = intersperse "." $ chunksAsT cs
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         ep' = maybe "" (\e -> showt e <> ":") ep
 
 -- | Convert a `Mess` back to its textual representation.
-prettyMess :: Mess -> Text
+prettyMess :: Mess -> T.Text
 prettyMess (VLeaf t)     = mconcat $ intersperse "." t
-prettyMess (VNode t s v) = snoc t' (sepCh s) <> prettyMess v
+prettyMess (VNode t s v) = T.snoc t' (sepCh s) <> prettyMess v
   where t' = mconcat $ intersperse "." t
 
-chunksAsT :: [VChunk] -> [Text]
+chunksAsT :: [VChunk] -> [T.Text]
 chunksAsT = map (mconcat . map f)
   where f (Digits i) = showt i
         f (Str s)    = s
@@ -547,5 +557,5 @@ opposite LT = GT
 opposite GT = LT
 
 -- Yes, `text-show` exists, but this reduces external dependencies.
-showt :: Show a => a -> Text
-showt = pack . show
+showt :: Show a => a -> T.Text
+showt = T.pack . show
