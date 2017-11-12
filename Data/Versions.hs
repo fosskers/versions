@@ -56,6 +56,7 @@ module Data.Versions
     , versionP
     , messP
       -- ** Megaparsec Parsers
+      -- | For when you'd like to mix version parsing into some larger parser.
     , semver'
     , version'
     , mess'
@@ -68,8 +69,10 @@ module Data.Versions
       -- * Lenses
     , Lens'
     , Traversal'
-    , SemVerLike(..)
-      -- **  Traversing Text
+    , Semantic(..)
+      -- ** Traversing Text
+      -- | When traversing `T.Text`, leveraging its `Semantic` instance will
+      -- likely benefit you more than using these Traversals directly.
     , _Versioning
     , _SemVer
     , _Version
@@ -78,10 +81,8 @@ module Data.Versions
     , _Ideal
     , _General
     , _Complex
-      -- ** (Ideal) SemVer Lenses
-    , svMeta
       -- ** (General) Version Lenses
-    , vEpoch
+    , epoch
       -- ** Misc. Lenses / Traversals
     , _Digits
     , _Str ) where
@@ -137,9 +138,43 @@ mFromV :: Version -> Mess
 mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
   where affix = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 
+instance Semantic Versioning where
+  major f (Ideal v)   = Ideal   <$> major f v
+  major f (General v) = General <$> major f v
+  major f (Complex v) = Complex <$> major f v
+  {-# INLINE major #-}
+
+  minor f (Ideal v)   = Ideal   <$> minor f v
+  minor f (General v) = General <$> minor f v
+  minor f (Complex v) = Complex <$> minor f v
+  {-# INLINE minor #-}
+
+  patch f (Ideal v)   = Ideal   <$> patch f v
+  patch f (General v) = General <$> patch f v
+  patch f (Complex v) = Complex <$> patch f v
+  {-# INLINE patch #-}
+
+  release f (Ideal v)   = Ideal   <$> release f v
+  release f (General v) = General <$> release f v
+  release f (Complex v) = Complex <$> release f v
+  {-# INLINE release #-}
+
+  meta f (Ideal v)   = Ideal   <$> meta f v
+  meta f (General v) = General <$> meta f v
+  meta f (Complex v) = Complex <$> meta f v
+  {-# INLINE meta #-}
+
+  semantic f (Ideal v)   = Ideal   <$> semantic f v
+  semantic f (General v) = General <$> semantic f v
+  semantic f (Complex v) = Complex <$> semantic f v
+  {-# INLINE semantic #-}
+
 -- | Traverse some Text for its inner versioning.
 --
--- > ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) == "1.2.4"
+-- @
+-- λ "1.2.3" & _Versioning . _Ideal . patch %~ (+ 1)  -- or just: "1.2.3" & patch %~ (+ 1)
+-- "1.2.4"
+-- @
 _Versioning :: Traversal' T.Text Versioning
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
 {-# INLINE _Versioning #-}
@@ -157,6 +192,7 @@ _Version f t = either (const (pure t)) (fmap prettyVer . f) $ version t
 -- | Traverse some Text for its inner Mess.
 _Mess :: Traversal' T.Text Mess
 _Mess f t = either (const (pure t)) (fmap prettyMess . f) $ mess t
+{-# INLINE _Mess #-}
 
 _Ideal :: Traversal' Versioning SemVer
 _Ideal f (Ideal s) = Ideal <$> f s
@@ -179,20 +215,53 @@ type Lens' s a = forall f. Functor f => (a -> f a) -> s -> f s
 -- | Simple Traversals compatible with both lens and microlens.
 type Traversal' s a = forall f. Applicative f => (a -> f a) -> s -> f s
 
--- | Version types other than `SemVer` /may/ be able to yield the same
--- information that `SemVer` supplies readily. For instance, given the
--- `Version` @1.2.3.4.5@, we can imagine wanting to increment the
--- minor number:
+-- | Version types which sanely and safely yield `SemVer`-like information
+-- about themselves. For instances other than `SemVer` itself however,
+-- these optics may /not/ yield anything, depending on the actual value being
+-- traversed. Hence, the optics here are all `Traversal'`s.
+--
+-- Consider the `Version` @1.2.3.4.5@. We can imagine wanting to increment
+-- the minor number:
 --
 -- @
--- λ "1.2.3.4.5" & _Version . minor %~ (+ 1)
+-- λ "1.2.3.4.5" & minor %~ (+ 1)
 -- "1.3.3.4.5"
 -- @
-class SemVerLike v where
-  major   :: Traversal' v Word
-  minor   :: Traversal' v Word
-  patch   :: Traversal' v Word
-  release :: Traversal' v [VChunk]
+--
+-- But of course something like this would fail:
+--
+-- @
+-- λ "1.e.3.4.5" & minor %~ (+ 1)
+-- "1.e.3.4.5"
+-- @
+--
+-- However!
+--
+-- @
+-- λ "1.e.3.4.5" & major %~ (+ 1)
+-- "2.e.3.4.5"
+-- @
+class Semantic v where
+  -- | @MAJOR.minor.patch-prerel+meta@
+  major    :: Traversal' v Word
+  -- | @major.MINOR.patch-prerel+meta@
+  minor    :: Traversal' v Word
+  -- | @major.minor.PATCH-prerel+meta@
+  patch    :: Traversal' v Word
+  -- | @major.minor.patch-PREREL+meta@
+  release  :: Traversal' v [VChunk]
+  -- | @major.minor.patch-prerel+META@
+  meta     :: Traversal' v [VChunk]
+  -- | A Natural Transformation into an proper `SemVer`.
+  semantic :: Traversal' v SemVer
+
+instance Semantic T.Text where
+  major    = _Versioning . major
+  minor    = _Versioning . minor
+  patch    = _Versioning . patch
+  release  = _Versioning . release
+  meta     = _Versioning . meta
+  semantic = _SemVer
 
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
@@ -238,7 +307,7 @@ instance Monoid SemVer where
   SemVer mj mn pa p m `mappend` SemVer mj' mn' pa' p' m' =
     SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
 
-instance SemVerLike SemVer where
+instance Semantic SemVer where
   major f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
   {-# INLINE major #-}
 
@@ -251,9 +320,11 @@ instance SemVerLike SemVer where
   release f sv = fmap (\pa -> sv { _svPreRel = pa }) (f $ _svPreRel sv)
   {-# INLINE release #-}
 
-svMeta :: Lens' SemVer [VChunk]
-svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
-{-# INLINE svMeta #-}
+  meta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
+  {-# INLINE meta #-}
+
+  semantic = ($)
+  {-# INLINE semantic #-}
 
 -- | A single unit of a Version. May be digits or a string of characters.
 -- Groups of these are called `VChunk`s, and are the identifiers separated
@@ -268,14 +339,12 @@ digits = Digits
 str :: T.Text -> Maybe VUnit
 str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
 
--- | > _Digits :: Traversal' VUnit Word
-_Digits :: Applicative f => (Word -> f Word) -> VUnit -> f VUnit
+_Digits :: Traversal' VUnit Word
 _Digits f (Digits i) = Digits <$> f i
 _Digits _ v = pure v
 {-# INLINE _Digits #-}
 
--- | > _Str :: Traversal' VUnit Text
-_Str :: Applicative f => (T.Text -> f T.Text) -> VUnit -> f VUnit
+_Str :: Traversal' VUnit T.Text
 _Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
 _Str _ v = pure v
 {-# INLINE _Str #-}
@@ -355,7 +424,7 @@ instance Ord Version where
           f (Digits _ :_) (Str _ :_) = GT
           f (Str _ :_ ) (Digits _ :_) = LT
 
-instance SemVerLike Version where
+instance Semantic Version where
   major f (Version e ([Digits n] : cs) rs) = (\n' -> Version e ([Digits n'] : cs) rs) <$> f n
   major _ v = pure v
   {-# INLINE major #-}
@@ -368,12 +437,21 @@ instance SemVerLike Version where
   patch _ v = pure v
   {-# INLINE patch #-}
 
+  -- | This will always succeed.
   release f v = fmap (\vr -> v { _vRel = vr }) (f $ _vRel v)
   {-# INLINE release #-}
 
-vEpoch :: Lens' Version (Maybe Word)
-vEpoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
-{-# INLINE vEpoch #-}
+  -- | This will always fail.
+  meta _ v = pure v
+  {-# INLINE meta #-}
+
+  semantic f (Version _ ([Digits a] : [Digits b] : [Digits c] : _) rs) = vFromS <$> f (SemVer a b c rs [])
+  semantic _ v = pure v
+  {-# INLINE semantic #-}
+
+epoch :: Lens' Version (Maybe Word)
+epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
+{-# INLINE epoch #-}
 
 -- | A (Complex) Mess.
 -- This is a /descriptive/ parser, based on examples of stupidly
@@ -396,6 +474,39 @@ instance Ord Mess where
   compare (VNode t1 _ v1) (VNode t2 _ v2) | t1 < t2 = LT
                                           | t1 > t2 = GT
                                           | otherwise = compare v1 v2
+
+instance Semantic Mess where
+  major f v@(VNode (t : ts) s ms) = either (const $ pure v) g $ parse digitsP "Major" t
+    where g n = (\n' -> VNode (showt n' : ts) s ms) <$> f n
+  major _ v = pure v
+  {-# INLINE major #-}
+
+  minor f v@(VNode (t0 : t : ts) s ms) = either (const $ pure v) g $ parse digitsP "Minor" t
+    where g n = (\n' -> VNode (t0 : showt n' : ts) s ms) <$> f n
+  minor _ v = pure v
+  {-# INLINE minor #-}
+
+  patch f v@(VNode (t0 : t1 : t : ts) s ms) = either (const $ pure v) g $ parse digitsP "Patch" t
+    where g n = (\n' -> VNode (t0 : t1 : showt n' : ts) s ms) <$> f n
+  patch _ v = pure v
+  {-# INLINE patch #-}
+
+  -- | This will always fail.
+  release _ v = pure v
+  {-# INLINE release #-}
+
+  -- | This will always fail.
+  meta _ v = pure v
+  {-# INLINE meta #-}
+
+  -- | Good luck.
+  semantic f v@(VNode (t0 : t1 : t2 : _) _ _) = either (const $ pure v) (fmap (mFromV . vFromS)) $
+    (\a b c -> f $ SemVer a b c [] [])
+    <$> parse digitsP "Major" t0
+    <*> parse digitsP "Minor" t1
+    <*> parse digitsP "Patch" t2
+  semantic _ v = pure v
+  {-# INLINE semantic #-}
 
 -- | Developers use a number of symbols to seperate groups of digits/letters
 -- in their version numbers. These are:
@@ -422,8 +533,8 @@ instance Monoid VParser where
   (VParser f) `mappend` (VParser g) = VParser h
     where h t = either (const (g t)) Right $ f t
 
--- | Parse a piece of @Text@ into either an (Ideal) SemVer, a (General)
--- Version, or a (Complex) Mess.
+-- | Parse a piece of `T.Text` into either an (Ideal) `SemVer`, a (General)
+-- `Version`, or a (Complex) `Mess`.
 parseV :: T.Text -> Either ParsingError Versioning
 parseV = runVP $ semverP <> versionP <> messP
 
@@ -488,10 +599,10 @@ version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of 'versionP'.
 version' :: Parsec Void T.Text Version
-version' = Version <$> optional (try epoch) <*> chunks <*> preRel
+version' = Version <$> optional (try epochP) <*> chunks <*> preRel
 
-epoch :: Parsec Void T.Text Word
-epoch = read <$> (some digitChar <* char ':')
+epochP :: Parsec Void T.Text Word
+epochP = read <$> (some digitChar <* char ':')
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
 messP :: VParser
