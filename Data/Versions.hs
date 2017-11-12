@@ -93,6 +93,7 @@ import Data.List (intersperse)
 import Data.Monoid
 import Data.Text (Text,pack,unpack,snoc)
 import Data.Void
+import Data.Word (Word)
 import GHC.Generics
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -189,10 +190,12 @@ _Complex _ v = pure v
 --
 -- 2. Build metadata does not affect version precedence.
 --
+-- 3. PREREL and META strings may only contain ASCII alphanumerics.
+--
 -- For more information, see http://semver.org
-data SemVer = SemVer { _svMajor  :: Int
-                     , _svMinor  :: Int
-                     , _svPatch  :: Int
+data SemVer = SemVer { _svMajor  :: Word
+                     , _svMinor  :: Word
+                     , _svPatch  :: Word
                      , _svPreRel :: [VChunk]
                      , _svMeta   :: [VChunk] } deriving (Show,Generic,NFData,Hashable)
 
@@ -219,17 +222,17 @@ instance Monoid SemVer where
     SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
 
 -- | > svMajor :: Lens' SemVer Int
-svMajor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
+svMajor :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
 svMajor f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
 {-# INLINE svMajor #-}
 
 -- | > svMinor :: Lens' SemVer Int
-svMinor :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
+svMinor :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
 svMinor f sv = fmap (\mi -> sv { _svMinor = mi }) (f $ _svMinor sv)
 {-# INLINE svMinor #-}
 
 -- | > svPatch :: Lens' SemVer Int
-svPatch :: Functor f => (Int -> f Int) -> SemVer -> f SemVer
+svPatch :: Functor f => (Word -> f Word) -> SemVer -> f SemVer
 svPatch f sv = fmap (\pa -> sv { _svPatch = pa }) (f $ _svPatch sv)
 {-# INLINE svPatch #-}
 
@@ -246,10 +249,10 @@ svMeta f sv = fmap (\pa -> sv { _svMeta = pa }) (f $ _svMeta sv)
 -- | A single unit of a Version. May be digits or a string of characters.
 -- Groups of these are called `VChunk`s, and are the identifiers separated
 -- by periods in the source.
-data VUnit = Digits Int | Str Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
+data VUnit = Digits Word | Str Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
 -- | > _Digits :: Traversal' VUnit Int
-_Digits :: Applicative f => (Int -> f Int) -> VUnit -> f VUnit
+_Digits :: Applicative f => (Word -> f Word) -> VUnit -> f VUnit
 _Digits f (Digits i) = Digits <$> f i
 _Digits _ v = pure v
 {-# INLINE _Digits #-}
@@ -271,7 +274,7 @@ type VChunk = [VUnit]
 -- These are prefixes marked by a colon, like in @1:2.3.4@.
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
-data Version = Version { _vEpoch  :: Maybe Int
+data Version = Version { _vEpoch  :: Maybe Word
                        , _vChunks :: [VChunk]
                        , _vRel    :: [VChunk] } deriving (Eq,Show,Generic,NFData,Hashable)
 
@@ -289,6 +292,8 @@ instance Ord Version where
   compare v0@(Version (Just 0) _ _) v1@(Version Nothing _ _) = compare (wipe v0) v1
   compare v0@(Version Nothing _ _) v1@(Version (Just 0) _ _) = compare v0 (wipe v1)
 
+  -- | If a version has an epoch > 1 and the other has no epoch, the first will
+  -- be considered greater.
   compare (Version (Just _) _ _) (Version Nothing _ _) = GT
   compare (Version Nothing _ _) (Version (Just _) _ _) = LT
 
@@ -334,7 +339,7 @@ instance Ord Version where
           f (Str _ :_ ) (Digits _ :_) = LT
 
 -- | > vEpoch :: Lens' Version (Maybe Int)
-vEpoch :: Functor f => (Maybe Int -> f (Maybe Int)) -> Version -> f Version
+vEpoch :: Functor f => (Maybe Word -> f (Maybe Word)) -> Version -> f Version
 vEpoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 
 -- | > vChunks :: Lens' Version [VChunk]
@@ -412,16 +417,16 @@ semver' :: Parsec Void Text SemVer
 semver' = SemVer <$> major <*> minor <*> patch <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
-digits :: Parsec Void Text Int
+digits :: Parsec Void Text Word
 digits = read <$> ((unpack <$> string "0") <|> some digitChar)
 
-major :: Parsec Void Text Int
+major :: Parsec Void Text Word
 major = digits <* char '.'
 
-minor :: Parsec Void Text Int
+minor :: Parsec Void Text Word
 minor = major
 
-patch :: Parsec Void Text Int
+patch :: Parsec Void Text Word
 patch = digits
 
 preRel :: Parsec Void Text [VChunk]
@@ -462,7 +467,7 @@ version = parse (version' <* eof) "Version"
 version' :: Parsec Void Text Version
 version' = Version <$> optional (try epoch) <*> chunks <*> preRel
 
-epoch :: Parsec Void Text Int
+epoch :: Parsec Void Text Word
 epoch = read <$> (some digitChar <* char ':')
 
 -- | A wrapped `Mess` parser. Can be composed with other parsers.
