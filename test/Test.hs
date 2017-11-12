@@ -2,14 +2,37 @@
 
 module Main where
 
+import Data.Char
+import Data.Either (isRight)
+import Data.Maybe (fromJust)
 import Data.Monoid ((<>))
-import Data.Text (Text,unpack)
+import Data.Text (Text, unpack, pack)
 import Data.Versions
 import Lens.Micro
+import Test.QuickCheck
+import Test.QuickCheck.Checkers
+import Test.QuickCheck.Classes
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
 ---
+
+instance Arbitrary SemVer where
+  arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance EqProp SemVer where
+  a =-= b = eq a b
+
+instance Arbitrary VUnit where
+  arbitrary = frequency [ (1, digits <$> arbitrary) , (1, s) ]
+    where s = fromJust . str . pack . map unletter <$> arbitrary
+
+-- | An ASCII letter.
+newtype Letter = Letter { unletter :: Char }
+
+instance Arbitrary Letter where
+  arbitrary = Letter . chr <$> choose (97, 122)
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [Text]
@@ -54,65 +77,72 @@ versionOrd :: [Text]
 versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1", "2" ]
 
 suite :: TestTree
-suite = testGroup "Unit Tests"
-  [ testGroup "(Ideal) Semantic Versioning"
-    [ testGroup "Bad Versions (shouldn't parse)" $
-      map (\s -> testCase (unpack s) $ assert $ isLeft $ semver s) badSemVs
-    , testGroup "Good Versions (should parse)" $
-      map (\s -> testCase (unpack s) $ isomorphSV s) goodSemVs
-    , testGroup "Comparisons" $
-      testCase "1.2.3-alpha.2 == 1.2.3-alpha.2+a1b2c3.1"
-      (assert $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
-      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp semver a b)
-      (zip semverOrd $ tail semverOrd)
+suite = testGroup "Tests"
+  [ testGroup "Property Tests"
+    [ testGroup "SemVer - Monoid" $
+      map (\(name, test) -> testProperty name test) . unbatch $ monoid (SemVer 1 2 3 [] [])
+    , testProperty "SemVer - Arbitrary" $ \a -> isRight . fmap (== a) $ semver (prettySemVer a)
     ]
-  , testGroup "(General) Versions"
-    [ testGroup "Good Versions" $
-      map (\s -> testCase (unpack s) $ isomorphV s) goodVers
-    , testGroup "Comparisons" $
-      testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
-      testCase "1.0rc1 < 1.0" (comp version "1.0rc1" "1.0") :
-      testCase "1.0 < 1:1.0" (comp version "1.0" "1:1.0") :
-      testCase "1.1 < 1:1.0" (comp version "1.1" "1:1.0") :
-      testCase "1.1 < 1:1.1" (comp version "1.1" "1:1.1") :
-      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b)
-      (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
-    ]
-  , testGroup "(Complex) Mess"
-    [ testGroup "Good Versions" $
-      map (\s -> testCase (unpack s) $ isomorphM s) messes
-    , testGroup "Comparisons" $
-      map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp mess a b) $
-      zip messComps (tail messComps)
-    ]
-  , testGroup "Mixed Versioning"
-    [ testGroup "Identification"
-      [ testCase "1.2.3 is SemVer" $ check $ isSemVer <$> parseV "1.2.3"
-      , testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1"
-      , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1+1"
-      , testCase "1.2.3r1 is Version" $ check $ isVersion <$> parseV "1.2.3r1"
-      , testCase "0.25-2 is Version" $ check $ isVersion <$> parseV "0.25-2"
-      , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> parseV "1:1.2.3-1"
-      , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> parseV "1.2.3+1-1"
-      , testCase "000.007-1 is Mess" $ check $ isMess <$> parseV "000.007-1"
-      , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> parseV "20.26.1_0-2"
+  , testGroup "Unit Tests"
+    [ testGroup "(Ideal) Semantic Versioning"
+      [ testGroup "Bad Versions (shouldn't parse)" $
+        map (\s -> testCase (unpack s) $ assert $ isLeft $ semver s) badSemVs
+      , testGroup "Good Versions (should parse)" $
+        map (\s -> testCase (unpack s) $ isomorphSV s) goodSemVs
+      , testGroup "Comparisons" $
+        testCase "1.2.3-alpha.2 == 1.2.3-alpha.2+a1b2c3.1"
+        (assert $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
+        map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp semver a b)
+        (zip semverOrd $ tail semverOrd)
       ]
-    , testGroup "Isomorphisms" $
-      map (\s -> testCase (unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
-    , testGroup "Comparisons"
-      [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp parseV "1.2.2r1-1" "1.2.3-1"
-      , testCase "1.2.3-1   < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
-      , testCase "1.2.3-1   < 2+0007-1"  $ comp parseV "1.2.3-1" "2+0007-1"
-      , testCase "1.2.3r1-1 < 2+0007-1"  $ comp parseV "1.2.3r1-1" "2+0007-1"
-      , testCase "1.2-5 < 1.2.3-1"       $ comp parseV "1.2-5" "1.2.3-1"
+    , testGroup "(General) Versions"
+      [ testGroup "Good Versions" $
+        map (\s -> testCase (unpack s) $ isomorphV s) goodVers
+      , testGroup "Comparisons" $
+        testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
+        testCase "1.0rc1 < 1.0" (comp version "1.0rc1" "1.0") :
+        testCase "1.0 < 1:1.0" (comp version "1.0" "1:1.0") :
+        testCase "1.1 < 1:1.0" (comp version "1.1" "1:1.0") :
+        testCase "1.1 < 1:1.1" (comp version "1.1" "1:1.1") :
+        map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b)
+        (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
       ]
-    ]
+    , testGroup "(Complex) Mess"
+      [ testGroup "Good Versions" $
+        map (\s -> testCase (unpack s) $ isomorphM s) messes
+      , testGroup "Comparisons" $
+        map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp mess a b) $
+        zip messComps (tail messComps)
+      ]
+    , testGroup "Mixed Versioning"
+      [ testGroup "Identification"
+        [ testCase "1.2.3 is SemVer" $ check $ isSemVer <$> parseV "1.2.3"
+        , testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1"
+        , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1+1"
+        , testCase "1.2.3r1 is Version" $ check $ isVersion <$> parseV "1.2.3r1"
+        , testCase "0.25-2 is Version" $ check $ isVersion <$> parseV "0.25-2"
+        , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> parseV "1:1.2.3-1"
+        , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> parseV "1.2.3+1-1"
+        , testCase "000.007-1 is Mess" $ check $ isMess <$> parseV "000.007-1"
+        , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> parseV "20.26.1_0-2"
+        ]
+      , testGroup "Isomorphisms" $
+        map (\s -> testCase (unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
+      , testGroup "Comparisons"
+        [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp parseV "1.2.2r1-1" "1.2.3-1"
+        , testCase "1.2.3-1   < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
+        , testCase "1.2.3-1   < 2+0007-1"  $ comp parseV "1.2.3-1" "2+0007-1"
+        , testCase "1.2.3r1-1 < 2+0007-1"  $ comp parseV "1.2.3r1-1" "2+0007-1"
+        , testCase "1.2-5 < 1.2.3-1"       $ comp parseV "1.2-5" "1.2.3-1"
+        ]
+      ]
     , testGroup "Lenses and Traversals"
       [ testCase "SemVer - Increment Patch" incPatch
       , testCase "SemVer - Increment Patch from Text" incFromT
       , testCase "SemVer - Get patches" patches
       , testCase "Traverse `General` as `Ideal`" noInc
       ]
+    ]
   ]
 
 -- | Does pretty-printing return a Versioning to its original form?
