@@ -3,7 +3,7 @@
 module Main where
 
 import Data.Char
-import Data.Either (isRight)
+import Data.Either (isRight, isLeft)
 import Data.Maybe (fromJust)
 import Data.Monoid ((<>))
 import Data.Text (Text, unpack, pack)
@@ -179,42 +179,21 @@ isMess (Complex _) = True
 isMess _ = False
 
 incPatch :: Assertion
-incPatch = (v1 & _Ideal . svPatch %~ (+ 1)) @?= v2
+incPatch = (v1 & patch %~ (+ 1)) @?= v2
   where v1 = Ideal $ SemVer 1 2 3 [] []
         v2 = Ideal $ SemVer 1 2 4 [] []
 
 -- | Nothing should happen.
 noInc :: Assertion
-noInc = (v & _Ideal . svPatch %~ (+ 1)) @?= v
+noInc = (v & patch %~ (+ 1)) @?= v
   where v = General $ Version Nothing [] []
 
 incFromT :: Assertion
-incFromT = ("1.2.3" & _Versioning . _Ideal . svPatch %~ (+ 1)) @?= "1.2.4"
+incFromT = (("1.2.3" :: Text) & patch %~ (+ 1)) @?= "1.2.4"
 
 patches :: Assertion
 patches = ps @?= [3,4,5]
-  where ps = ["1.2.3","2.3.4","3.4.5"] ^.. each . _SemVer . svPatch
-
-isLeft :: Either t1 t -> Bool
-isLeft (Left _) = True
-isLeft _ = False
-
-{-}
--- Need to submit patch for these, as well as Maybe instance.
-assertRight :: String -> Either a b -> Assertion
-assertRight _ (Right _)  = return ()
-assertRight msg (Left _) = assertFailure msg
-
-instance Assertable (Either a b) where
-  assert = assertRight ""
-
-assertMaybe :: String -> Maybe a -> Assertion
-assertMaybe _ (Just _)  = return ()
-assertMaybe msg Nothing = assertFailure msg
-
-instance Assertable (Maybe a) where
-  assert = assertMaybe ""
--}
+  where ps = (["1.2.3","2.3.4","3.4.5"] :: [Text]) ^.. each . patch
 
 main :: IO ()
 main = defaultMain suite
