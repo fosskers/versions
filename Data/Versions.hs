@@ -44,28 +44,16 @@ module Data.Versions
     , VUnit, digits, str
     , VChunk
     , VSep(..)
-    , VParser(..)
-    , ParsingError
       -- * Parsers
-    , semver
-    , version
-    , mess
+    , VParser(..), ParsingError
+    , semver, version, mess
       -- ** Wrapped Parsers
-    , parseV
-    , semverP
-    , versionP
-    , messP
+    , parseV, semverP, versionP, messP
       -- ** Megaparsec Parsers
       -- | For when you'd like to mix version parsing into some larger parser.
-    , semver'
-    , version'
-    , mess'
+    , semver', version', mess'
       -- * Pretty Printing
-    , prettyV
-    , prettySemVer
-    , prettyVer
-    , prettyMess
-    , parseErrorPretty
+    , prettyV, prettySemVer, prettyVer, prettyMess, parseErrorPretty
       -- * Lenses
     , Lens'
     , Traversal'
@@ -73,19 +61,14 @@ module Data.Versions
       -- ** Traversing Text
       -- | When traversing `T.Text`, leveraging its `Semantic` instance will
       -- likely benefit you more than using these Traversals directly.
-    , _Versioning
-    , _SemVer
-    , _Version
-    , _Mess
+    , _Versioning, _SemVer, _Version, _Mess
       -- ** Versioning Traversals
-    , _Ideal
-    , _General
-    , _Complex
+    , _Ideal, _General, _Complex
       -- ** (General) Version Lenses
     , epoch
       -- ** Misc. Lenses / Traversals
-    , _Digits
-    , _Str ) where
+    , _Digits, _Str
+    ) where
 
 import           Control.DeepSeq
 import           Data.Bool (bool)
