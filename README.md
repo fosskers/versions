@@ -40,15 +40,15 @@ could:
 
 ```haskell
 incPatch :: SemVer -> SemVer
-incPatch s = s & svPatch %~ (+ 1)
+incPatch s = s & patch %~ (+ 1)
 ```
 
 Or, something more involved:
 
 ```haskell
 -- | Get all major versions of legally parsed SemVers.
-majors :: [Text] -> [Int]
-majors vs = vs ^.. each . to semver . _Right . svMajor
+majors :: [Text] -> [Word]
+majors vs = vs ^.. each . to semver . _Right . major
 ```
 
 The `to semver . _Right` is clunky, so we provide some direct `Text`
@@ -57,26 +57,16 @@ Traverals inspired by
 [lens-aeson](http://hackage.haskell.org/package/lens-aeson):
 
 ```haskell
--- | Get all major versions of legally parsed SemVers.
-majors :: [Text] -> [Int]
-majors vs = vs ^.. each . _SemVer . svMajor
-```
-
-Note that `_SemVer` only attempts to parse as true Semantic Versioning. If
-the package versions you're parsing don't agree to a standard, you can
-achieve a similar result via:
-
-```haskell
--- | Get all major versions of potentially parsed SemVers.
-majors :: [Text] -> [Int]
-majors vs = vs ^.. each . _Versioning . _Ideal . svMajor
+-- | Get the major version of any `Text` that has one.
+majors :: [Text] -> [Word]
+majors vs = vs ^.. each . major
 ```
 
 We can also use these `Text` Traversals to increment versions, as above:
 
 ```haskell
 incPatch :: Text -> Text
-incPatch s = s & _SemVer . svPatch %~ (+ 1)
+incPatch s = s & patch %~ (+ 1)
 
 > incPatch "1.2.3"
 "1.2.4"

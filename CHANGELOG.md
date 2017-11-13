@@ -1,6 +1,23 @@
 Changelog
 =========
 
+3.3.0
+------
+- New `Semantic` typeclass that provides Traversals for SemVer-like data out
+  of all the version types. `Text` was also given an instance, so its much
+  easier to manipulate directly:
+
+```
+λ "1.2.3" & minor %~ (+ 1)
+"1.3.3"
+```
+
+Some Lenses and Traversals had their names changed or were removed entirely
+to accomodate this new typeclass.
+
+- `SemVer` and `Version` should never contain negative values, so their numeric
+  components were changed from `Int` to `Word`.
+
 3.2.0
 -----
 - Updated for `megaparsec-6` and GHC 8.2.

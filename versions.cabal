@@ -3,7 +3,7 @@
 -- see: https://github.com/sol/hpack
 
 name:           versions
-version:        3.2.0
+version:        3.3.0
 synopsis:       Types and parsers for software version numbers.
 description:    A library for parsing and comparing software version numbers.
                 We like to give version numbers to our software in a myriad of
