@@ -4,6 +4,7 @@ module Main where
 
 import Data.Char
 import Data.Either (isRight, isLeft)
+import Data.Foldable (fold)
 import Data.List (groupBy)
 import Data.Monoid ((<>))
 import Data.Text (Text, unpack, pack)
@@ -21,12 +22,12 @@ import Test.Tasty.QuickCheck
 instance Arbitrary SemVer where
   arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> chunks <*> chunks
 
--- | Sane generatin of VChunks.
+-- | Sane generation of VChunks.
 chunks :: Gen [[VUnit]]
 chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
 
 simplify :: [VUnit] -> [VUnit]
-simplify = map (foldl1 mappend) . groupBy f
+simplify = map fold . groupBy f
   where f (Digits _) (Digits _) = True
         f (Str _) (Str _) = True
         f _ _ = False
@@ -37,6 +38,9 @@ instance EqProp SemVer where
 instance Arbitrary VUnit where
   arbitrary = frequency [ (1, Digits . (+ 1) <$> arbitrary) , (1, s) ]
     where s = Str . pack . map unletter <$> resize 10 (listOf1 arbitrary)
+
+instance EqProp VUnit where
+  a =-= b = eq a b
 
 -- | An ASCII letter.
 newtype Letter = Letter { unletter :: Char }
@@ -49,8 +53,6 @@ instance Arbitrary Version where
 
 instance EqProp Version where
   a =-= b = eq a b
-
--- instance CoArbitrary VUnit
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [Text]
@@ -103,6 +105,8 @@ suite = testGroup "Tests"
     , testProperty "Version - Arbitrary" $ \a -> isRight . fmap (== a) $ version (prettyVer a)
     -- , testGroup "Version - Monoid" $
     --   map (\(name, test) -> testProperty name test) . unbatch $ monoid (Version (Just 1) [[digits 2], [digits 3]])
+    , testGroup "VUnit - Monoid" $
+      map (\(name, test) -> testProperty name test) . unbatch $ monoid (Digits 0)
     ]
   , testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"

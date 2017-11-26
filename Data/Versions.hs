@@ -315,7 +315,7 @@ instance Semantic SemVer where
 data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
 instance Monoid VUnit where
-  mempty = Digits 0
+  mempty = Str ""
 
   Digits n `mappend` Digits m = Digits $ n + m
   Str t    `mappend` Str s    = Str $ t <> s
