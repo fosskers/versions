@@ -41,7 +41,7 @@ module Data.Versions
     , SemVer(..)
     , Version(..)
     , Mess(..)
-    , VUnit, digits, str
+    , VUnit(..), digits, str
     , VChunk
     , VSep(..)
       -- * Parsers
@@ -314,6 +314,14 @@ instance Semantic SemVer where
 -- by periods in the source.
 data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
+instance Monoid VUnit where
+  mempty = Digits 0
+
+  Digits n `mappend` Digits m = Digits $ n + m
+  Str t    `mappend` Str s    = Str $ t <> s
+  Digits n `mappend` _        = Digits n
+  _        `mappend` Digits n = Digits n
+
 -- | Smart constructor for a `VUnit` made of digits.
 digits :: Word -> VUnit
 digits = Digits
@@ -346,6 +354,11 @@ type VChunk = [VUnit]
 data Version = Version { _vEpoch  :: Maybe Word
                        , _vChunks :: [VChunk]
                        , _vRel    :: [VChunk] } deriving (Eq,Show,Generic,NFData,Hashable)
+
+instance Monoid Version where
+  mempty = Version Nothing [] []
+
+  Version e c r `mappend` Version e' c' r' = Version ((+) <$> e <*> e') (c ++ c') (r ++ r')
 
 -- | Set a `Version`'s epoch to `Nothing`.
 wipe :: Version -> Version
