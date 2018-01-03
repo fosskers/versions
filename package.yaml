@@ -65,6 +65,7 @@ tests:
   versions-test:
     main: Test.hs
     source-dirs: test
+    other-modules: []
     ghc-options:
       - -threaded
     dependencies:

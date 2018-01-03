@@ -1,3 +1,9 @@
+-- This file has been generated from package.yaml by hpack version 0.21.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 3ae9a6e1dbdbc2c664c4acac0cc66b464d04d9b615da7054ddffe1d12daa8d93
+
 name:           versions
 version:        3.3.1
 synopsis:       Types and parsers for software version numbers.
