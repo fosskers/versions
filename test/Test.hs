@@ -167,7 +167,6 @@ suite = testGroup "Tests"
       , testCase "SemVer - Get patches" patches
       , testCase "Traverse `General` as `Ideal`" noInc
       ]
-    , testCase "TOTAL GARBAGE" $ True @?= False
     ]
   ]
 
