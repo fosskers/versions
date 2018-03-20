@@ -1,6 +1,10 @@
 Changelog
 =========
 
+3.3.2
+------
+- GHC 8.4.1 compatibility.
+
 3.3.0
 ------
 - New `Semantic` typeclass that provides Traversals for SemVer-like data out
