@@ -1,10 +1,11 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE CPP #-}
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2017
+-- Copyright : (c) Colin Woodbury, 2015 - 2018
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 --
@@ -75,13 +76,16 @@ import           Data.Bool (bool)
 import           Data.Char (isAlpha)
 import           Data.Hashable
 import           Data.List (intersperse)
-import           Data.Monoid
 import qualified Data.Text as T
 import           Data.Void
 import           Data.Word (Word)
 import           GHC.Generics
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
+
+#if __GLASGOW_HASKELL__ < 841
+import Data.Semigroup
+#endif
 
 ---
 
@@ -285,10 +289,16 @@ instance Ord SemVer where
             (_,[])  -> LT
             _       -> compare pr pr'
 
+instance Semigroup SemVer where
+  SemVer mj mn pa p m <> SemVer mj' mn' pa' p' m' =
+    SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
+
 instance Monoid SemVer where
   mempty = SemVer 0 0 0 [] []
-  SemVer mj mn pa p m `mappend` SemVer mj' mn' pa' p' m' =
-    SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
+
+#if __GLASGOW_HASKELL__ < 841
+  mappend = (<>)
+#endif
 
 instance Semantic SemVer where
   major f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
@@ -314,13 +324,18 @@ instance Semantic SemVer where
 -- by periods in the source.
 data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
+instance Semigroup VUnit where
+  Digits n <> Digits m = Digits $ n + m
+  Str t    <> Str s    = Str $ t <> s
+  Digits n <> _        = Digits n
+  _        <> Digits n = Digits n
+
 instance Monoid VUnit where
   mempty = Str ""
 
-  Digits n `mappend` Digits m = Digits $ n + m
-  Str t    `mappend` Str s    = Str $ t <> s
-  Digits n `mappend` _        = Digits n
-  _        `mappend` Digits n = Digits n
+#if __GLASGOW_HASKELL__ < 841
+  mappend = (<>)
+#endif
 
 -- | Smart constructor for a `VUnit` made of digits.
 digits :: Word -> VUnit
@@ -355,10 +370,15 @@ data Version = Version { _vEpoch  :: Maybe Word
                        , _vChunks :: [VChunk]
                        , _vRel    :: [VChunk] } deriving (Eq,Show,Generic,NFData,Hashable)
 
+instance Semigroup Version where
+  Version e c r <> Version e' c' r' = Version ((+) <$> e <*> e') (c ++ c') (r ++ r')
+
 instance Monoid Version where
   mempty = Version Nothing [] []
 
-  Version e c r `mappend` Version e' c' r' = Version ((+) <$> e <*> e') (c ++ c') (r ++ r')
+#if __GLASGOW_HASKELL__ < 841
+  mappend = (<>)
+#endif
 
 -- | Set a `Version`'s epoch to `Nothing`.
 wipe :: Version -> Version
@@ -521,13 +541,18 @@ type ParsingError = ParseError (Token T.Text) Void
 -- if a previous one fails.
 newtype VParser = VParser { runVP :: T.Text -> Either ParsingError Versioning }
 
+instance Semigroup VParser where
+  -- | Will attempt the right parser if the left one fails.
+  (VParser f) <> (VParser g) = VParser h
+    where h t = either (const (g t)) Right $ f t
+
 instance Monoid VParser where
   -- | A parser which will always fail.
   mempty = VParser $ \_ -> Ideal <$> semver ""
 
-  -- | Will attempt the right parser if the left one fails.
-  (VParser f) `mappend` (VParser g) = VParser h
-    where h t = either (const (g t)) Right $ f t
+#if __GLASGOW_HASKELL__ < 841
+  mappend = (<>)
+#endif
 
 -- | Parse a piece of `T.Text` into either an (Ideal) `SemVer`, a (General)
 -- `Version`, or a (Complex) `Mess`.

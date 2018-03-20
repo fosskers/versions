@@ -111,12 +111,13 @@ suite = testGroup "Tests"
   , testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"
       [ testGroup "Bad Versions (shouldn't parse)" $
-        map (\s -> testCase (unpack s) $ assert $ isLeft $ semver s) badSemVs
+        map (\s -> testCase (unpack s) $ assertBool "A bad version parsed" $ isLeft $ semver s) badSemVs
       , testGroup "Good Versions (should parse)" $
         map (\s -> testCase (unpack s) $ isomorphSV s) goodSemVs
       , testGroup "Comparisons" $
         testCase "1.2.3-alpha.2 == 1.2.3-alpha.2+a1b2c3.1"
-        (assert $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
+        (assertBool "Equality test of two complicated SemVers failed"
+         $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
         map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp semver a b)
         (zip semverOrd $ tail semverOrd)
       ]
@@ -189,7 +190,7 @@ comp :: Ord b => (Text -> Either a b) -> Text -> Text -> Assertion
 comp f a b = check $ (<) <$> f a <*> f b
 
 check :: Either a Bool -> Assertion
-check = assert . either (const False) id
+check = assertBool "Some Either-based assertion failed" . either (const False) id
 
 isSemVer :: Versioning -> Bool
 isSemVer (Ideal _) = True
