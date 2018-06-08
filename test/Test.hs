@@ -1,12 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, NoImplicitPrelude #-}
 
 module Main where
 
-import Data.Char
-import Data.Either (isRight, isLeft)
-import Data.Foldable (fold)
-import Data.List (groupBy)
-import Data.Monoid ((<>))
+import BasePrelude hiding (Version)
 import Data.Text (Text, unpack, pack)
 import Data.Versions
 import Lens.Micro

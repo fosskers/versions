@@ -63,6 +63,7 @@ tests:
       - -threaded
       - -with-rtsopts=-N
     dependencies:
+      - base-prelude
       - checkers >= 0.4 && < 0.5
       - microlens >= 0.4 && < 0.5
       - QuickCheck >= 2.9 && < 2.12
