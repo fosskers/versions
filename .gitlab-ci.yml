@@ -1,0 +1,27 @@
+image: haskell:8.2.2
+
+variables:
+  STACK_ROOT: "${CI_PROJECT_DIR}/.stack"
+
+cache:
+  paths:
+    - .stack
+    - .stack-work
+    - target
+
+before_script:
+  - apt-get update
+
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  script:
+    - stack build
+
+unit-test:
+  stage: test
+  script:
+    - stack test
