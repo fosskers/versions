@@ -226,6 +226,8 @@ patches = ps @?= [3,4,5]
 main :: IO ()
 main = defaultMain suite
 
+-- TODO dummy comment, remove later
+
 nameGrab :: Parsec Void T.Text T.Text
 nameGrab = T.pack <$> manyTill anyChar (try finished)
   where finished = char '-' *> lookAhead digitChar
