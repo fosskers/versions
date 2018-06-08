@@ -7,18 +7,12 @@ cache:
   paths:
     - .stack
     - .stack-work
-    - target
 
 stages:
   - build
-  - test
 
 build:
   stage: build
   script:
-    - stack build
+    - stack test --fast
 
-unit-test:
-  stage: test
-  script:
-    - stack test
