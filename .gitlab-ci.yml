@@ -9,9 +9,6 @@ cache:
     - .stack-work
     - target
 
-before_script:
-  - apt-get update
-
 stages:
   - build
   - test
