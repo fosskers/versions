@@ -2,16 +2,18 @@
 
 module Main where
 
-import BasePrelude hiding (Version)
-import Data.Text (Text, unpack, pack)
-import Data.Versions
-import Lens.Micro
-import Test.QuickCheck
-import Test.QuickCheck.Checkers
-import Test.QuickCheck.Classes
-import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
+import           BasePrelude hiding (Version, try)
+import qualified Data.Text as T
+import           Data.Versions
+import           Lens.Micro
+import           Test.QuickCheck
+import           Test.QuickCheck.Checkers
+import           Test.QuickCheck.Classes
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Test.Tasty.QuickCheck
+import           Text.Megaparsec
+import           Text.Megaparsec.Char
 
 ---
 
@@ -33,7 +35,7 @@ instance EqProp SemVer where
 
 instance Arbitrary VUnit where
   arbitrary = frequency [ (1, Digits . (+ 1) <$> arbitrary) , (1, s) ]
-    where s = Str . pack . map unletter <$> resize 10 (listOf1 arbitrary)
+    where s = Str . T.pack . map unletter <$> resize 10 (listOf1 arbitrary)
 
 instance EqProp VUnit where
   a =-= b = eq a b
@@ -51,31 +53,31 @@ instance EqProp Version where
   a =-= b = eq a b
 
 -- | These don't need to parse as a SemVer.
-goodVers :: [Text]
+goodVers :: [T.Text]
 goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1", "1:0.10.16-3"
            ]
 
-messes :: [Text]
+messes :: [T.Text]
 messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2" ]
 
-messComps :: [Text]
+messComps :: [T.Text]
 messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
             , "10.2+0.94+1-1", "10.3+0.93+1-1", "11.2+0.93+1-1", "12"
             ]
 
-badSemVs :: [Text]
+badSemVs :: [T.Text]
 badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
            , "1.2.3+a1b!2c3.1"
            ]
 
-goodSemVs :: [Text]
+goodSemVs :: [T.Text]
 goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
             , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1"
             ]
 
 -- | The exact example from `http://semver.org`
-semverOrd :: [Text]
+semverOrd :: [T.Text]
 semverOrd = [ "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta"
             , "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1"
             , "1.0.0"
@@ -86,10 +88,10 @@ semverOrd = [ "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta"
 -- make this necessary, meaning `cabal` can't be simplified to ignore it.
 -- Logically, these are the same package, but for those 5 packages, they
 -- aren't.
-cabalOrd :: [Text]
+cabalOrd :: [T.Text]
 cabalOrd = [ "0.2", "0.2.0", "0.2.0.0" ]
 
-versionOrd :: [Text]
+versionOrd :: [T.Text]
 versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1", "2" ]
 
 suite :: TestTree
@@ -107,33 +109,33 @@ suite = testGroup "Tests"
   , testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"
       [ testGroup "Bad Versions (shouldn't parse)" $
-        map (\s -> testCase (unpack s) $ assertBool "A bad version parsed" $ isLeft $ semver s) badSemVs
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ semver s) badSemVs
       , testGroup "Good Versions (should parse)" $
-        map (\s -> testCase (unpack s) $ isomorphSV s) goodSemVs
+        map (\s -> testCase (T.unpack s) $ isomorphSV s) goodSemVs
       , testGroup "Comparisons" $
         testCase "1.2.3-alpha.2 == 1.2.3-alpha.2+a1b2c3.1"
         (assertBool "Equality test of two complicated SemVers failed"
          $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
-        map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp semver a b)
+        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b)
         (zip semverOrd $ tail semverOrd)
       ]
     , testGroup "(General) Versions"
       [ testGroup "Good Versions" $
-        map (\s -> testCase (unpack s) $ isomorphV s) goodVers
+        map (\s -> testCase (T.unpack s) $ isomorphV s) goodVers
       , testGroup "Comparisons" $
         testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
         testCase "1.0rc1 < 1.0" (comp version "1.0rc1" "1.0") :
         testCase "1.0 < 1:1.0" (comp version "1.0" "1:1.0") :
         testCase "1.1 < 1:1.0" (comp version "1.1" "1:1.0") :
         testCase "1.1 < 1:1.1" (comp version "1.1" "1:1.1") :
-        map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp version a b)
+        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp version a b)
         (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
       ]
     , testGroup "(Complex) Mess"
       [ testGroup "Good Versions" $
-        map (\s -> testCase (unpack s) $ isomorphM s) messes
+        map (\s -> testCase (T.unpack s) $ isomorphM s) messes
       , testGroup "Comparisons" $
-        map (\(a,b) -> testCase (unpack $ a <> " < " <> b) $ comp mess a b) $
+        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) $
         zip messComps (tail messComps)
       ]
     , testGroup "Mixed Versioning"
@@ -149,7 +151,7 @@ suite = testGroup "Tests"
         , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> parseV "20.26.1_0-2"
         ]
       , testGroup "Isomorphisms" $
-        map (\s -> testCase (unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
+        map (\s -> testCase (T.unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
       , testGroup "Comparisons"
         [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp parseV "1.2.2r1-1" "1.2.3-1"
         , testCase "1.2.3-1   < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
@@ -164,25 +166,29 @@ suite = testGroup "Tests"
       , testCase "SemVer - Get patches" patches
       , testCase "Traverse `General` as `Ideal`" noInc
       ]
+    , testGroup "Megaparsec Behaviour"
+      [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"
+      , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right(Ideal $ SemVer 3 2 14 [[Digits 1]] [])
+      ]
     ]
   ]
 
 -- | Does pretty-printing return a Versioning to its original form?
-isomorph :: Text -> Assertion
+isomorph :: T.Text -> Assertion
 isomorph t = Right t @=? (prettyV <$> parseV t)
 
 -- | Does pretty-printing return a Version to its original form?
-isomorphV :: Text -> Assertion
+isomorphV :: T.Text -> Assertion
 isomorphV t = Right t @=? (prettyVer <$> version t)
 
 -- | Does pretty-printing return a SemVer to its original form?
-isomorphSV :: Text -> Assertion
+isomorphSV :: T.Text -> Assertion
 isomorphSV t = Right t @=? (prettySemVer <$> semver t)
 
-isomorphM :: Text -> Assertion
+isomorphM :: T.Text -> Assertion
 isomorphM t =  Right t @=? (prettyMess <$> mess t)
 
-comp :: Ord b => (Text -> Either a b) -> Text -> Text -> Assertion
+comp :: Ord b => (T.Text -> Either a b) -> T.Text -> T.Text -> Assertion
 comp f a b = check $ (<) <$> f a <*> f b
 
 check :: Either a Bool -> Assertion
@@ -211,11 +217,20 @@ noInc = (v & patch %~ (+ 1)) @?= v
   where v = General $ Version Nothing [] []
 
 incFromT :: Assertion
-incFromT = (("1.2.3" :: Text) & patch %~ (+ 1)) @?= "1.2.4"
+incFromT = (("1.2.3" :: T.Text) & patch %~ (+ 1)) @?= "1.2.4"
 
 patches :: Assertion
 patches = ps @?= [3,4,5]
-  where ps = (["1.2.3","2.3.4","3.4.5"] :: [Text]) ^.. each . patch
+  where ps = (["1.2.3","2.3.4","3.4.5"] :: [T.Text]) ^.. each . patch
 
 main :: IO ()
 main = defaultMain suite
+
+nameGrab :: Parsec Void T.Text T.Text
+nameGrab = T.pack <$> manyTill anyChar (try finished)
+  where finished = char '-' *> lookAhead digitChar
+
+versionGrab :: Parsec Void T.Text Versioning
+versionGrab = manyTill anyChar (try finished) *> ver
+  where finished = char '-' *> lookAhead digitChar
+        ver = fmap Ideal semver' <|> fmap General version' <|> fmap Complex mess'

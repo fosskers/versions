@@ -43,6 +43,7 @@ ghc-options:
 
 dependencies:
   - base >= 4.8 && < 4.12
+  - megaparsec >= 6 && < 7
   - text >= 1.2 && < 1.3
 
 library:
@@ -50,7 +51,6 @@ library:
     - Data.Versions
   other-modules: []
   dependencies:
-    - megaparsec >= 6 && < 7
     - deepseq >= 1.4 && < 1.5
     - hashable >= 1.2 && < 1.3
 
