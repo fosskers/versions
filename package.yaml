@@ -25,9 +25,9 @@ description: 'A library for parsing and comparing software version numbers.
 
 category: Data
 author: Colin Woodbury
-maintainer: colingw@gmail.com
+maintainer: colin@fosskers.ca
 license: BSD3
-git: git://github.com/fosskers/haskell-versions.git
+homepage: https://gitlab.com/fosskers/versions
 
 extra-source-files:
   - CHANGELOG.md
