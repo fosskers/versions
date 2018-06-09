@@ -140,24 +140,24 @@ suite = testGroup "Tests"
       ]
     , testGroup "Mixed Versioning"
       [ testGroup "Identification"
-        [ testCase "1.2.3 is SemVer" $ check $ isSemVer <$> parseV "1.2.3"
-        , testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1"
-        , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> parseV "1.2.3-1+1"
-        , testCase "1.2.3r1 is Version" $ check $ isVersion <$> parseV "1.2.3r1"
-        , testCase "0.25-2 is Version" $ check $ isVersion <$> parseV "0.25-2"
-        , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> parseV "1:1.2.3-1"
-        , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> parseV "1.2.3+1-1"
-        , testCase "000.007-1 is Mess" $ check $ isMess <$> parseV "000.007-1"
-        , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> parseV "20.26.1_0-2"
+        [ testCase "1.2.3 is SemVer" $ check $ isSemVer <$> versioning "1.2.3"
+        , testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> versioning "1.2.3-1"
+        , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> versioning "1.2.3-1+1"
+        , testCase "1.2.3r1 is Version" $ check $ isVersion <$> versioning "1.2.3r1"
+        , testCase "0.25-2 is Version" $ check $ isVersion <$> versioning "0.25-2"
+        , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> versioning "1:1.2.3-1"
+        , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> versioning "1.2.3+1-1"
+        , testCase "000.007-1 is Mess" $ check $ isMess <$> versioning "000.007-1"
+        , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> versioning "20.26.1_0-2"
         ]
       , testGroup "Isomorphisms" $
         map (\s -> testCase (T.unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
       , testGroup "Comparisons"
-        [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp parseV "1.2.2r1-1" "1.2.3-1"
-        , testCase "1.2.3-1   < 1.2.4r1-1" $ comp parseV "1.2.3-1" "1.2.4r1-1"
-        , testCase "1.2.3-1   < 2+0007-1"  $ comp parseV "1.2.3-1" "2+0007-1"
-        , testCase "1.2.3r1-1 < 2+0007-1"  $ comp parseV "1.2.3r1-1" "2+0007-1"
-        , testCase "1.2-5 < 1.2.3-1"       $ comp parseV "1.2-5" "1.2.3-1"
+        [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp versioning "1.2.2r1-1" "1.2.3-1"
+        , testCase "1.2.3-1   < 1.2.4r1-1" $ comp versioning "1.2.3-1" "1.2.4r1-1"
+        , testCase "1.2.3-1   < 2+0007-1"  $ comp versioning "1.2.3-1" "2+0007-1"
+        , testCase "1.2.3r1-1 < 2+0007-1"  $ comp versioning "1.2.3r1-1" "2+0007-1"
+        , testCase "1.2-5 < 1.2.3-1"       $ comp versioning "1.2-5" "1.2.3-1"
         ]
       ]
     , testGroup "Lenses and Traversals"
@@ -175,7 +175,7 @@ suite = testGroup "Tests"
 
 -- | Does pretty-printing return a Versioning to its original form?
 isomorph :: T.Text -> Assertion
-isomorph t = Right t @=? (prettyV <$> parseV t)
+isomorph t = Right t @=? (prettyV <$> versioning t)
 
 -- | Does pretty-printing return a Version to its original form?
 isomorphV :: T.Text -> Assertion
@@ -225,8 +225,6 @@ patches = ps @?= [3,4,5]
 
 main :: IO ()
 main = defaultMain suite
-
--- TODO dummy comment, remove later
 
 nameGrab :: Parsec Void T.Text T.Text
 nameGrab = T.pack <$> manyTill anyChar (try finished)

@@ -29,7 +29,7 @@
 -- incrementing and has the best constraints on comparisons.
 --
 -- == Using the Parsers
--- In general, `parseV` is the function you want. It attempts to parse
+-- In general, `versioning` is the function you want. It attempts to parse
 -- a given @Text@ using the three individual parsers, `semver`, `version`
 -- and `mess`. If one fails, it tries the next. If you know you only want
 -- to parse one specific version type, use that parser directly
@@ -45,14 +45,12 @@ module Data.Versions
     , VUnit(..), digits, str
     , VChunk
     , VSep(..)
-      -- * Parsers
-    , VParser(..), ParsingError
-    , semver, version, mess
-      -- ** Wrapped Parsers
-    , parseV, semverP, versionP, messP
+      -- * Parsing Versions
+    , ParsingError
+    , versioning, semver, version, mess
       -- ** Megaparsec Parsers
       -- | For when you'd like to mix version parsing into some larger parser.
-    , semver', version', mess'
+    , versioning', semver', version', mess'
       -- * Pretty Printing
     , prettyV, prettySemVer, prettyVer, prettyMess, parseErrorPretty
       -- * Lenses
@@ -163,7 +161,7 @@ instance Semantic Versioning where
 -- "1.2.4"
 -- @
 _Versioning :: Traversal' T.Text Versioning
-_Versioning f t = either (const (pure t)) (fmap prettyV . f) $ parseV t
+_Versioning f t = either (const (pure t)) (fmap prettyV . f) $ versioning t
 {-# INLINE _Versioning #-}
 
 -- | Traverse some Text for its inner SemVer.
@@ -536,38 +534,20 @@ data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,H
 -- | A synonym for the more verbose `megaparsec` error type.
 type ParsingError = ParseError (Token T.Text) Void
 
--- | A wrapper for a parser function. Can be composed via their
--- Monoid instance, such that a different parser can be tried
--- if a previous one fails.
-newtype VParser = VParser { runVP :: T.Text -> Either ParsingError Versioning }
-
-instance Semigroup VParser where
-  -- | Will attempt the right parser if the left one fails.
-  (VParser f) <> (VParser g) = VParser h
-    where h t = either (const (g t)) Right $ f t
-
-instance Monoid VParser where
-  -- | A parser which will always fail.
-  mempty = VParser $ \_ -> Ideal <$> semver ""
-
-#if __GLASGOW_HASKELL__ < 841
-  mappend = (<>)
-#endif
-
 -- | Parse a piece of `T.Text` into either an (Ideal) `SemVer`, a (General)
 -- `Version`, or a (Complex) `Mess`.
-parseV :: T.Text -> Either ParsingError Versioning
-parseV = runVP $ semverP <> versionP <> messP
+versioning :: T.Text -> Either ParsingError Versioning
+versioning = parse versioning' "versioning"
 
--- | A wrapped `SemVer` parser. Can be composed with other parsers.
-semverP :: VParser
-semverP = VParser $ fmap Ideal . semver
+-- | Parse a `Versioning`. Assumes that the version number is the last token in the string.
+versioning' :: Parsec Void T.Text Versioning
+versioning' = try (fmap Ideal semver' <* eof) <|> try (fmap General version' <* eof) <|> (fmap Complex mess' <* eof)
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: T.Text -> Either ParsingError SemVer
 semver = parse (semver' <* eof) "Semantic Version"
 
--- | Internal megaparsec parser of 'semverP'.
+-- | Internal megaparsec parser of `semver`.
 semver' :: Parsec Void T.Text SemVer
 semver' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
 
@@ -610,30 +590,22 @@ iunit = Digits . read <$> some digitChar
 sunit :: Parsec Void T.Text VUnit
 sunit = Str . T.pack <$> some letterChar
 
--- | A wrapped `Version` parser. Can be composed with other parsers.
-versionP :: VParser
-versionP = VParser $ fmap General . version
-
 -- | Parse a (General) `Version`, as defined above.
 version :: T.Text -> Either ParsingError Version
 version = parse (version' <* eof) "Version"
 
--- | Internal megaparsec parser of 'versionP'.
+-- | Internal megaparsec parser of `version`.
 version' :: Parsec Void T.Text Version
 version' = Version <$> optional (try epochP) <*> chunks <*> preRel
 
 epochP :: Parsec Void T.Text Word
 epochP = read <$> (some digitChar <* char ':')
 
--- | A wrapped `Mess` parser. Can be composed with other parsers.
-messP :: VParser
-messP = VParser $ fmap Complex . mess
-
 -- | Parse a (Complex) `Mess`, as defined above.
 mess :: T.Text -> Either ParsingError Mess
 mess = parse (mess' <* eof) "Mess"
 
--- | Internal megaparsec parser of 'messP'.
+-- | Internal megaparsec parser of `mess`.
 mess' :: Parsec Void T.Text Mess
 mess' = try node <|> leaf
 

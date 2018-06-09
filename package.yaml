@@ -39,6 +39,7 @@ ghc-options:
   - -fwarn-name-shadowing
   - -fwarn-unused-matches
   - -fwarn-incomplete-patterns
+  - -fwarn-redundant-constraints
   - -Wincomplete-uni-patterns
 
 dependencies:
