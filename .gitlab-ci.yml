@@ -20,13 +20,3 @@ ghc-8.2.2:
   stage: test
   script:
     - stack test --fast --resolver lts-11.13
-
-ghc-8.0.2:
-  stage: test
-  script:
-    - stack test --fast --resolver lts-9.21
-
-ghc-7.10.3:
-  stage: test
-  script:
-    - stack test --fast --resolver lts-6.35
