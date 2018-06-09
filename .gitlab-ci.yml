@@ -9,10 +9,24 @@ cache:
     - .stack-work
 
 stages:
-  - build
+  - test
 
-build:
-  stage: build
+ghc-8.4.3:
+  stage: test
   script:
-    - stack test --fast
+    - stack test --fast --resolver nightly-2018-06-09
 
+ghc-8.2.2:
+  stage: test
+  script:
+    - stack test --fast --resolver lts-11.13
+
+ghc-8.0.2:
+  stage: test
+  script:
+    - stack test --fast --resolver lts-9.21
+
+ghc-7.10.3:
+  stage: test
+  script:
+    - stack test --fast --resolver lts-6.35
