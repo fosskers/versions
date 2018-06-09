@@ -1,6 +1,11 @@
 Changelog
 =========
 
+3.4.0
+------
+- Removed `ParseV` and surrounding machinery.
+  Use `versioning` now instead of the `parseV` function.
+
 3.3.2
 ------
 - GHC 8.4.1 compatibility.

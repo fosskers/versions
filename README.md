@@ -27,7 +27,7 @@ the best constraints on comparisons.
 
 Usage
 -----
-In general, `parseV` is the function you want. It attempts to parse a given
+In general, `versioning` is the function you want. It attempts to parse a given
 Text using the three individual parsers, `semver`, `version` and `mess`. If
 one fails, it tries the next. If you know you only want to parse one
 specific version type, use that parser directly (e.g. `semver`).
