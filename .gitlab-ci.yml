@@ -11,12 +11,7 @@ cache:
 stages:
   - test
 
-ghc-8.4.3:
-  stage: test
-  script:
-    - stack test --fast --resolver nightly-2018-06-09
-
 ghc-8.2.2:
   stage: test
   script:
-    - stack test --fast --resolver lts-11.13
+    - stack test --fast --system-ghc
