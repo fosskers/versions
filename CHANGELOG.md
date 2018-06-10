@@ -1,6 +1,10 @@
 Changelog
 =========
 
+3.4.0.1
+---------
+- Enhanced the whitespace handling in `semver'`, `version'`, and `mess'`.
+
 3.4.0
 ------
 - Removed `ParseV` and surrounding machinery.
