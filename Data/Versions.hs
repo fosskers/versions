@@ -80,6 +80,7 @@ import           Data.Word (Word)
 import           GHC.Generics
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
 #if __GLASGOW_HASKELL__ < 841
 import Data.Semigroup
@@ -539,9 +540,12 @@ type ParsingError = ParseError (Token T.Text) Void
 versioning :: T.Text -> Either ParsingError Versioning
 versioning = parse versioning' "versioning"
 
--- | Parse a `Versioning`. Assumes that the version number is the last token in the string.
+-- | Parse a `Versioning`. Assumes the version number is the last token in
+-- the string.
 versioning' :: Parsec Void T.Text Versioning
-versioning' = try (fmap Ideal semver' <* eof) <|> try (fmap General version' <* eof) <|> (fmap Complex mess' <* eof)
+versioning' = choice [ try (fmap Ideal semver'    <* eof)
+                     , try (fmap General version' <* eof)
+                     , fmap Complex mess'         <* eof ]
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: T.Text -> Either ParsingError SemVer
@@ -549,7 +553,7 @@ semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of `semver`.
 semver' :: Parsec Void T.Text SemVer
-semver' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
+semver' = L.lexeme space (SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData)
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digitsP :: Parsec Void T.Text Word
@@ -596,7 +600,7 @@ version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of `version`.
 version' :: Parsec Void T.Text Version
-version' = Version <$> optional (try epochP) <*> chunks <*> preRel
+version' = L.lexeme space (Version <$> optional (try epochP) <*> chunks <*> preRel)
 
 epochP :: Parsec Void T.Text Word
 epochP = read <$> (some digitChar <* char ':')
@@ -607,7 +611,7 @@ mess = parse (mess' <* eof) "Mess"
 
 -- | Internal megaparsec parser of `mess`.
 mess' :: Parsec Void T.Text Mess
-mess' = try node <|> leaf
+mess' = L.lexeme space (try node <|> leaf)
 
 leaf :: Parsec Void T.Text Mess
 leaf = VLeaf <$> tchunks

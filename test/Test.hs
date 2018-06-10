@@ -118,6 +118,9 @@ suite = testGroup "Tests"
          $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
         map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b)
         (zip semverOrd $ tail semverOrd)
+      , testGroup "Whitespace Handling"
+        [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] [])
+        ]
       ]
     , testGroup "(General) Versions"
       [ testGroup "Good Versions" $
