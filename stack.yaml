@@ -1,4 +1,8 @@
-resolver: lts-11.13
+resolver: lts-12.10
 
 packages:
   - .
+
+extra-deps:
+  - QuickCheck-2.12.4
+  - megaparsec-7.0.1

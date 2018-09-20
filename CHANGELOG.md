@@ -1,6 +1,12 @@
 Changelog
 =========
 
+3.5.0
+------
+- Updated to `megaparsec-7`. Our `ParsingError` type alias has changed to match
+  Megaparsec's new error model, and `errorBundlePretty` is now exposed instead of
+  the old `parseErrorPretty`.
+
 3.4.0.1
 ---------
 - Enhanced the whitespace handling in `semver'`, `version'`, and `mess'`.

@@ -230,10 +230,10 @@ main :: IO ()
 main = defaultMain suite
 
 nameGrab :: Parsec Void T.Text T.Text
-nameGrab = T.pack <$> manyTill anyChar (try finished)
+nameGrab = T.pack <$> manyTill anySingle (try finished)
   where finished = char '-' *> lookAhead digitChar
 
 versionGrab :: Parsec Void T.Text Versioning
-versionGrab = manyTill anyChar (try finished) *> ver
+versionGrab = manyTill anySingle (try finished) *> ver
   where finished = char '-' *> lookAhead digitChar
         ver = fmap Ideal semver' <|> fmap General version' <|> fmap Complex mess'

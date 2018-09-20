@@ -52,7 +52,7 @@ module Data.Versions
       -- | For when you'd like to mix version parsing into some larger parser.
     , versioning', semver', version', mess'
       -- * Pretty Printing
-    , prettyV, prettySemVer, prettyVer, prettyMess, parseErrorPretty
+    , prettyV, prettySemVer, prettyVer, prettyMess, errorBundlePretty
       -- * Lenses
     , Lens'
     , Traversal'
@@ -78,7 +78,7 @@ import qualified Data.Text as T
 import           Data.Void
 import           Data.Word (Word)
 import           GHC.Generics
-import           Text.Megaparsec
+import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -533,7 +533,7 @@ instance Semantic Mess where
 data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | A synonym for the more verbose `megaparsec` error type.
-type ParsingError = ParseError (Token T.Text) Void
+type ParsingError = ParseErrorBundle T.Text Void
 
 -- | Parse a piece of `T.Text` into either an (Ideal) `SemVer`, a (General)
 -- `Version`, or a (Complex) `Mess`.
