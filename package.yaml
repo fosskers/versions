@@ -34,16 +34,13 @@ extra-source-files:
   - README.md
 
 ghc-options:
-  - -fwarn-unused-imports
-  - -fwarn-unused-binds
-  - -fwarn-name-shadowing
-  - -fwarn-unused-matches
-  - -fwarn-incomplete-patterns
-  - -fwarn-redundant-constraints
+  - -Wall
+  - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
 
 dependencies:
-  - base >= 4.8 && < 4.12
+  - base >= 4.8 && < 4.13
   - megaparsec >= 7 && < 8
   - text >= 1.2 && < 1.3
 

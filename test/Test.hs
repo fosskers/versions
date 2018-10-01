@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings, NoImplicitPrelude #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Main where
 
 import           BasePrelude hiding (Version, try)
