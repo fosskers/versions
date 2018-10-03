@@ -1,9 +1,7 @@
-# resolver: lts-12.10
-resolver: nightly-2018-09-30
+resolver: lts-12.11
 
 packages:
   - .
 
 extra-deps:
-  - QuickCheck-2.12.5
   - megaparsec-7.0.1

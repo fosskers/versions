@@ -82,7 +82,7 @@ import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
-#if __GLASGOW_HASKELL__ < 841
+#if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup
 #endif
 
