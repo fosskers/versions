@@ -1,7 +1,8 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE Rank2Types        #-}
 
 -- |
 -- Module    : Data.Versions
@@ -70,20 +71,20 @@ module Data.Versions
     ) where
 
 import           Control.DeepSeq
-import           Data.Bool (bool)
-import           Data.Char (isAlpha)
+import           Data.Bool                  (bool)
+import           Data.Char                  (isAlpha)
 import           Data.Hashable
-import           Data.List (intersperse)
-import qualified Data.Text as T
+import           Data.List                  (intersperse)
+import qualified Data.Text                  as T
 import           Data.Void
-import           Data.Word (Word)
+import           Data.Word                  (Word)
 import           GHC.Generics
-import           Text.Megaparsec hiding (chunk)
+import           Text.Megaparsec            hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 #if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup
+import           Data.Semigroup
 #endif
 
 ---
@@ -182,17 +183,17 @@ _Mess f t = either (const (pure t)) (fmap prettyMess . f) $ mess t
 
 _Ideal :: Traversal' Versioning SemVer
 _Ideal f (Ideal s) = Ideal <$> f s
-_Ideal _ v = pure v
+_Ideal _ v         = pure v
 {-# INLINE _Ideal #-}
 
 _General :: Traversal' Versioning Version
 _General f (General v) = General <$> f v
-_General _ v = pure v
+_General _ v           = pure v
 {-# INLINE _General #-}
 
 _Complex :: Traversal' Versioning Mess
 _Complex f (Complex m) = Complex <$> f m
-_Complex _ v = pure v
+_Complex _ v           = pure v
 {-# INLINE _Complex #-}
 
 -- | Simple Lenses compatible with both lens and microlens.
@@ -346,12 +347,12 @@ str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
 
 _Digits :: Traversal' VUnit Word
 _Digits f (Digits i) = Digits <$> f i
-_Digits _ v = pure v
+_Digits _ v          = pure v
 {-# INLINE _Digits #-}
 
 _Str :: Traversal' VUnit T.Text
 _Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
-_Str _ v = pure v
+_Str _ v       = pure v
 {-# INLINE _Str #-}
 
 -- | A logical unit of a version number. Can consist of multiple letters
