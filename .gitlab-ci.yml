@@ -1,12 +1,4 @@
-image: haskell:8.6.3
-
-variables:
-  STACK_ROOT: "${CI_PROJECT_DIR}/.stack"
-
-cache:
-  paths:
-    - .stack
-    - .stack-work
+image: fpco/stack-build:lts-13
 
 stages:
   - test
