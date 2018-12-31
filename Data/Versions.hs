@@ -1,11 +1,12 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE Rank2Types        #-}
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2018
+-- Copyright : (c) Colin Woodbury, 2015 - 2019
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 --
@@ -13,10 +14,9 @@
 --
 -- We like to give version numbers to our software in a myriad of different
 -- ways. Some ways follow strict guidelines for incrementing and comparison.
--- Some follow conventional wisdom and are generally self-consistent.
--- Some are just plain asinine. This library provides a means of parsing
--- and comparing /any/ style of versioning, be it a nice Semantic Version
--- like this:
+-- Some follow conventional wisdom and are generally self-consistent. Some are
+-- just plain asinine. This library provides a means of parsing and comparing
+-- /any/ style of versioning, be it a nice Semantic Version like this:
 --
 -- > 1.2.3-r1+git123
 --
@@ -24,16 +24,15 @@
 --
 -- > 2:10.2+0.0093r3+1-1
 --
--- Please switch to <http://semver.org Semantic Versioning> if you
--- aren't currently using it. It provides consistency in version
--- incrementing and has the best constraints on comparisons.
+-- Please switch to <http://semver.org Semantic Versioning> if you aren't
+-- currently using it. It provides consistency in version incrementing and has
+-- the best constraints on comparisons.
 --
 -- == Using the Parsers
--- In general, `versioning` is the function you want. It attempts to parse
--- a given @Text@ using the three individual parsers, `semver`, `version`
--- and `mess`. If one fails, it tries the next. If you know you only want
--- to parse one specific version type, use that parser directly
--- (e.g. `semver`).
+-- In general, `versioning` is the function you want. It attempts to parse a
+-- given @Text@ using the three individual parsers, `semver`, `version` and
+-- `mess`. If one fails, it tries the next. If you know you only want to parse
+-- one specific version type, use that parser directly (e.g. `semver`).
 
 module Data.Versions
     (
@@ -83,7 +82,7 @@ import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 #if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup
+import           Data.Semigroup
 #endif
 
 ---
@@ -182,17 +181,17 @@ _Mess f t = either (const (pure t)) (fmap prettyMess . f) $ mess t
 
 _Ideal :: Traversal' Versioning SemVer
 _Ideal f (Ideal s) = Ideal <$> f s
-_Ideal _ v = pure v
+_Ideal _ v         = pure v
 {-# INLINE _Ideal #-}
 
 _General :: Traversal' Versioning Version
 _General f (General v) = General <$> f v
-_General _ v = pure v
+_General _ v           = pure v
 {-# INLINE _General #-}
 
 _Complex :: Traversal' Versioning Mess
 _Complex f (Complex m) = Complex <$> f m
-_Complex _ v = pure v
+_Complex _ v           = pure v
 {-# INLINE _Complex #-}
 
 -- | Simple Lenses compatible with both lens and microlens.
@@ -346,12 +345,12 @@ str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
 
 _Digits :: Traversal' VUnit Word
 _Digits f (Digits i) = Digits <$> f i
-_Digits _ v = pure v
+_Digits _ v          = pure v
 {-# INLINE _Digits #-}
 
 _Str :: Traversal' VUnit T.Text
 _Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
-_Str _ v = pure v
+_Str _ v       = pure v
 {-# INLINE _Str #-}
 
 -- | A logical unit of a version number. Can consist of multiple letters

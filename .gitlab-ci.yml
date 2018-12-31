@@ -1,4 +1,4 @@
-image: haskell:8.2.2
+image: haskell:8.6
 
 variables:
   STACK_ROOT: "${CI_PROJECT_DIR}/.stack"
@@ -11,7 +11,7 @@ cache:
 stages:
   - test
 
-ghc-8.2.2:
+ghc-8.6:
   stage: test
   script:
     - stack test --fast --system-ghc

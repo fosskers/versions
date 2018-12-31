@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -29,8 +30,8 @@ chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
 simplify :: [VUnit] -> [VUnit]
 simplify = map fold . groupBy f
   where f (Digits _) (Digits _) = True
-        f (Str _) (Str _) = True
-        f _ _ = False
+        f (Str _) (Str _)       = True
+        f _ _                   = False
 
 instance EqProp SemVer where
   a =-= b = eq a b
@@ -201,15 +202,15 @@ check = assertBool "Some Either-based assertion failed" . either (const False) i
 
 isSemVer :: Versioning -> Bool
 isSemVer (Ideal _) = True
-isSemVer _ = False
+isSemVer _         = False
 
 isVersion :: Versioning -> Bool
 isVersion (General _) = True
-isVersion _ = False
+isVersion _           = False
 
 isMess :: Versioning -> Bool
 isMess (Complex _) = True
-isMess _ = False
+isMess _           = False
 
 incPatch :: Assertion
 incPatch = (v1 & patch %~ (+ 1)) @?= v2
