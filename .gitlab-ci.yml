@@ -11,7 +11,7 @@ cache:
 stages:
   - test
 
-ghc-8.2.2:
+ghc-8.6:
   stage: test
   script:
     - stack test --fast --system-ghc
