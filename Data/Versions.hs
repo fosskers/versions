@@ -6,7 +6,7 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2018
+-- Copyright : (c) Colin Woodbury, 2015 - 2019
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colingw@gmail.com>
 --
@@ -14,10 +14,9 @@
 --
 -- We like to give version numbers to our software in a myriad of different
 -- ways. Some ways follow strict guidelines for incrementing and comparison.
--- Some follow conventional wisdom and are generally self-consistent.
--- Some are just plain asinine. This library provides a means of parsing
--- and comparing /any/ style of versioning, be it a nice Semantic Version
--- like this:
+-- Some follow conventional wisdom and are generally self-consistent. Some are
+-- just plain asinine. This library provides a means of parsing and comparing
+-- /any/ style of versioning, be it a nice Semantic Version like this:
 --
 -- > 1.2.3-r1+git123
 --
@@ -25,16 +24,15 @@
 --
 -- > 2:10.2+0.0093r3+1-1
 --
--- Please switch to <http://semver.org Semantic Versioning> if you
--- aren't currently using it. It provides consistency in version
--- incrementing and has the best constraints on comparisons.
+-- Please switch to <http://semver.org Semantic Versioning> if you aren't
+-- currently using it. It provides consistency in version incrementing and has
+-- the best constraints on comparisons.
 --
 -- == Using the Parsers
--- In general, `versioning` is the function you want. It attempts to parse
--- a given @Text@ using the three individual parsers, `semver`, `version`
--- and `mess`. If one fails, it tries the next. If you know you only want
--- to parse one specific version type, use that parser directly
--- (e.g. `semver`).
+-- In general, `versioning` is the function you want. It attempts to parse a
+-- given @Text@ using the three individual parsers, `semver`, `version` and
+-- `mess`. If one fails, it tries the next. If you know you only want to parse
+-- one specific version type, use that parser directly (e.g. `semver`).
 
 module Data.Versions
     (
@@ -71,15 +69,15 @@ module Data.Versions
     ) where
 
 import           Control.DeepSeq
-import           Data.Bool                  (bool)
-import           Data.Char                  (isAlpha)
+import           Data.Bool (bool)
+import           Data.Char (isAlpha)
 import           Data.Hashable
-import           Data.List                  (intersperse)
-import qualified Data.Text                  as T
+import           Data.List (intersperse)
+import qualified Data.Text as T
 import           Data.Void
-import           Data.Word                  (Word)
+import           Data.Word (Word)
 import           GHC.Generics
-import           Text.Megaparsec            hiding (chunk)
+import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 

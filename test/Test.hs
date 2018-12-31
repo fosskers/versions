@@ -5,8 +5,8 @@
 
 module Main where
 
-import           BasePrelude              hiding (Version, try)
-import qualified Data.Text                as T
+import           BasePrelude hiding (Version, try)
+import qualified Data.Text as T
 import           Data.Versions
 import           Lens.Micro
 import           Test.QuickCheck
