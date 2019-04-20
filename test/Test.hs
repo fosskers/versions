@@ -101,13 +101,13 @@ suite :: TestTree
 suite = testGroup "Tests"
   [ testGroup "Property Tests"
     [ testGroup "SemVer - Monoid" $
-      map (\(name, test) -> testProperty name test) . unbatch $ monoid (SemVer 1 2 3 [] [])
+      map (uncurry testProperty) . unbatch $ monoid (SemVer 1 2 3 [] [])
     , testProperty "SemVer - Arbitrary" $ \a -> isRight . fmap (== a) $ semver (prettySemVer a)
     , testProperty "Version - Arbitrary" $ \a -> isRight . fmap (== a) $ version (prettyVer a)
     -- , testGroup "Version - Monoid" $
     --   map (\(name, test) -> testProperty name test) . unbatch $ monoid (Version (Just 1) [[digits 2], [digits 3]])
     , testGroup "VUnit - Monoid" $
-      map (\(name, test) -> testProperty name test) . unbatch $ monoid (Digits 0)
+      map (uncurry testProperty) . unbatch $ monoid (Digits 0)
     ]
   , testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"

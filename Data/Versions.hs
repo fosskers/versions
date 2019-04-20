@@ -87,22 +87,22 @@ import           Data.Semigroup
 
 ---
 
--- | A top-level Versioning type. Acts as a wrapper for the more specific
--- types. This allows each subtype to have its own parser, and for said
--- parsers to be composed. This is useful for specifying custom behaviour
--- for when a certain parser fails.
+-- | A top-level Versioning type. Acts as a wrapper for the more specific types.
+-- This allows each subtype to have its own parser, and for said parsers to be
+-- composed. This is useful for specifying custom behaviour for when a certain
+-- parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
   deriving (Eq,Show,Generic,NFData,Hashable)
 
 -- | Comparison of @Ideal@s is always well defined.
 --
--- If comparison of @General@s is well-defined, then comparison
--- of @Ideal@ and @General@ is well-defined, as there exists a perfect
--- mapping from @Ideal@ to @General@.
+-- If comparison of @General@s is well-defined, then comparison of @Ideal@ and
+-- @General@ is well-defined, as there exists a perfect mapping from @Ideal@ to
+-- @General@.
 --
 -- If comparison of @Complex@es is well-defined, then comparison of @General@
--- and @Complex@ is well defined for the same reason.
--- This implies comparison of @Ideal@ and @Complex@ is also well-defined.
+-- and @Complex@ is well defined for the same reason. This implies comparison of
+-- @Ideal@ and @Complex@ is also well-defined.
 instance Ord Versioning where
   compare (Ideal s)     (Ideal s')    = compare s s'
   compare (General v)   (General v')  = compare v v'
@@ -200,13 +200,13 @@ type Lens' s a = forall f. Functor f => (a -> f a) -> s -> f s
 -- | Simple Traversals compatible with both lens and microlens.
 type Traversal' s a = forall f. Applicative f => (a -> f a) -> s -> f s
 
--- | Version types which sanely and safely yield `SemVer`-like information
--- about themselves. For instances other than `SemVer` itself however,
--- these optics may /not/ yield anything, depending on the actual value being
--- traversed. Hence, the optics here are all `Traversal'`s.
+-- | Version types which sanely and safely yield `SemVer`-like information about
+-- themselves. For instances other than `SemVer` itself however, these optics
+-- may /not/ yield anything, depending on the actual value being traversed.
+-- Hence, the optics here are all `Traversal'`s.
 --
--- Consider the `Version` @1.2.3.4.5@. We can imagine wanting to increment
--- the minor number:
+-- Consider the `Version` @1.2.3.4.5@. We can imagine wanting to increment the
+-- minor number:
 --
 -- @
 -- λ "1.2.3.4.5" & minor %~ (+ 1)
@@ -317,9 +317,9 @@ instance Semantic SemVer where
   semantic = ($)
   {-# INLINE semantic #-}
 
--- | A single unit of a Version. May be digits or a string of characters.
--- Groups of these are called `VChunk`s, and are the identifiers separated
--- by periods in the source.
+-- | A single unit of a Version. May be digits or a string of characters. Groups
+-- of these are called `VChunk`s, and are the identifiers separated by periods
+-- in the source.
 data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
 
 instance Semigroup VUnit where
@@ -408,21 +408,22 @@ instance Ord Version where
 
   -- | If one side has run out of chunks to compare but the other hasn't,
   -- the other must be newer.
-  compare (Version _ _ _)  (Version _ [] _) = GT
-  compare (Version _ [] _) (Version _ _ _)  = LT
+  compare Version{}  (Version _ [] _) = GT
+  compare (Version _ [] _) Version{}  = LT
 
-  -- | The usual case. If first VChunks of each Version is equal, then we
-  -- keep recursing. Otherwise, we don't need to check further. Consider @1.2@
+  -- | The usual case. If first VChunks of each Version is equal, then we keep
+  -- recursing. Otherwise, we don't need to check further. Consider @1.2@
   -- compared to @1.1.3.4.5.6@.
   compare (Version _ (a:as) rs) (Version _ (b:bs) rs') = case f a b of
     EQ  -> compare (Version Nothing as rs) (Version Nothing bs rs')
     res -> res
     where f [] [] = EQ
 
-          -- | Opposite of the above. If we've recursed this far and one side has
-          -- fewer chunks, it must be the "greater" version. A Chunk break only occurs in
-          -- a switch from digits to letters and vice versa, so anything "extra" must be
-          -- an @rc@ marking or similar. Consider @1.1@ compared to @1.1rc1@.
+          -- | Opposite of the above. If we've recursed this far and one side
+          -- has fewer chunks, it must be the "greater" version. A Chunk break
+          -- only occurs in a switch from digits to letters and vice versa, so
+          -- anything "extra" must be an @rc@ marking or similar. Consider @1.1@
+          -- compared to @1.1rc1@.
           f [] _  = GT
           f _ []  = LT
 
@@ -467,18 +468,17 @@ epoch :: Lens' Version (Maybe Word)
 epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 {-# INLINE epoch #-}
 
--- | A (Complex) Mess.
--- This is a /descriptive/ parser, based on examples of stupidly
--- crafted version numbers used in the wild.
+-- | A (Complex) Mess. This is a /descriptive/ parser, based on examples of
+-- stupidly crafted version numbers used in the wild.
 --
--- Groups of letters/numbers, separated by a period, can be
--- further separated by the symbols @_-+:@
+-- Groups of letters/numbers, separated by a period, can be further separated by
+-- the symbols @_-+:@
 --
--- Unfortunately, @VChunk@s cannot be used here, as some developers have
--- numbers like @1.003.04@ which make parsers quite sad.
+-- Unfortunately, @VChunk@s cannot be used here, as some developers have numbers
+-- like @1.003.04@ which make parsers quite sad.
 --
--- Not guaranteed to have well-defined ordering (@Ord@) behaviour,
--- but so far internal tests show consistency.
+-- Not guaranteed to have well-defined ordering (@Ord@) behaviour, but so far
+-- internal tests show consistency.
 data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess deriving (Eq,Show,Generic,NFData,Hashable)
 
 instance Ord Mess where
@@ -522,8 +522,8 @@ instance Semantic Mess where
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
--- | Developers use a number of symbols to seperate groups of digits/letters
--- in their version numbers. These are:
+-- | Developers use a number of symbols to seperate groups of digits/letters in
+-- their version numbers. These are:
 --
 -- * A colon (:). Often denotes an "epoch".
 -- * A hyphen (-).
