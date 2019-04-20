@@ -40,7 +40,7 @@ ghc-options:
   - -Wredundant-constraints
 
 dependencies:
-  - base >= 4.8
+  - base >= 4.8 && < 4.13
   - megaparsec >= 7
   - text >= 1.2
 
