@@ -102,8 +102,8 @@ suite = testGroup "Tests"
   [ testGroup "Property Tests"
     [ testGroup "SemVer - Monoid" $
       map (uncurry testProperty) . unbatch $ monoid (SemVer 1 2 3 [] [])
-    , testProperty "SemVer - Arbitrary" $ \a -> isRight . fmap (== a) $ semver (prettySemVer a)
-    , testProperty "Version - Arbitrary" $ \a -> isRight . fmap (== a) $ version (prettyVer a)
+    , testProperty "SemVer - Arbitrary" $ \a -> semver (prettySemVer a) == Right a
+    , testProperty "Version - Arbitrary" $ \a -> version (prettyVer a) == Right a
     -- , testGroup "Version - Monoid" $
     --   map (\(name, test) -> testProperty name test) . unbatch $ monoid (Version (Just 1) [[digits 2], [digits 3]])
     , testGroup "VUnit - Monoid" $

@@ -75,7 +75,6 @@ import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import qualified Data.Text as T
 import           Data.Void (Void)
-import           Data.Word (Word)
 import           GHC.Generics (Generic)
 import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
