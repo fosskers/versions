@@ -1,8 +1,9 @@
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types        #-}
+{-# LANGUAGE CPP                #-}
+{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE Rank2Types         #-}
 
 -- |
 -- Module    : Data.Versions
@@ -35,48 +36,47 @@
 -- one specific version type, use that parser directly (e.g. `semver`).
 
 module Data.Versions
-    (
-      -- * Types
-      Versioning(..)
-    , SemVer(..)
-    , Version(..)
-    , Mess(..)
-    , VUnit(..), digits, str
-    , VChunk
-    , VSep(..)
-      -- * Parsing Versions
-    , ParsingError
-    , versioning, semver, version, mess
-      -- ** Megaparsec Parsers
-      -- | For when you'd like to mix version parsing into some larger parser.
-    , versioning', semver', version', mess'
-      -- * Pretty Printing
-    , prettyV, prettySemVer, prettyVer, prettyMess, errorBundlePretty
-      -- * Lenses
-    , Lens'
-    , Traversal'
-    , Semantic(..)
-      -- ** Traversing Text
-      -- | When traversing `T.Text`, leveraging its `Semantic` instance will
-      -- likely benefit you more than using these Traversals directly.
-    , _Versioning, _SemVer, _Version, _Mess
-      -- ** Versioning Traversals
-    , _Ideal, _General, _Complex
-      -- ** (General) Version Lenses
-    , epoch
-      -- ** Misc. Lenses / Traversals
-    , _Digits, _Str
-    ) where
+  ( -- * Types
+    Versioning(..)
+  , SemVer(..)
+  , Version(..)
+  , Mess(..)
+  , VUnit(..), digits, str
+  , VChunk
+  , VSep(..)
+    -- * Parsing Versions
+  , ParsingError
+  , versioning, semver, version, mess
+    -- ** Megaparsec Parsers
+    -- | For when you'd like to mix version parsing into some larger parser.
+  , versioning', semver', version', mess'
+    -- * Pretty Printing
+  , prettyV, prettySemVer, prettyVer, prettyMess, errorBundlePretty
+    -- * Lenses
+  , Lens'
+  , Traversal'
+  , Semantic(..)
+    -- ** Traversing Text
+    -- | When traversing `T.Text`, leveraging its `Semantic` instance will
+    -- likely benefit you more than using these Traversals directly.
+  , _Versioning, _SemVer, _Version, _Mess
+    -- ** Versioning Traversals
+  , _Ideal, _General, _Complex
+    -- ** (General) Version Lenses
+  , epoch
+    -- ** Misc. Lenses / Traversals
+  , _Digits, _Str
+  ) where
 
 import           Control.DeepSeq
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
-import           Data.Hashable
+import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import qualified Data.Text as T
-import           Data.Void
+import           Data.Void (Void)
 import           Data.Word (Word)
-import           GHC.Generics
+import           GHC.Generics (Generic)
 import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -92,7 +92,7 @@ import           Data.Semigroup
 -- composed. This is useful for specifying custom behaviour for when a certain
 -- parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
-  deriving (Eq,Show,Generic,NFData,Hashable)
+  deriving (Eq, Show, Generic, NFData, Hashable)
 
 -- | Comparison of @Ideal@s is always well defined.
 --
@@ -264,11 +264,14 @@ instance Semantic T.Text where
 -- 3. PREREL and META strings may only contain ASCII alphanumerics.
 --
 -- For more information, see http://semver.org
-data SemVer = SemVer { _svMajor  :: Word
-                     , _svMinor  :: Word
-                     , _svPatch  :: Word
-                     , _svPreRel :: [VChunk]
-                     , _svMeta   :: [VChunk] } deriving (Show,Generic,NFData,Hashable)
+data SemVer = SemVer
+  { _svMajor  :: Word
+  , _svMinor  :: Word
+  , _svPatch  :: Word
+  , _svPreRel :: [VChunk]
+  , _svMeta   :: [VChunk] }
+  deriving stock (Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
@@ -320,7 +323,9 @@ instance Semantic SemVer where
 -- | A single unit of a Version. May be digits or a string of characters. Groups
 -- of these are called `VChunk`s, and are the identifiers separated by periods
 -- in the source.
-data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
+data VUnit = Digits Word | Str T.Text
+  deriving stock (Eq, Show, Read, Ord, Generic)
+  deriving anyclass (NFData, Hashable)
 
 instance Semigroup VUnit where
   Digits n <> Digits m = Digits $ n + m
@@ -364,9 +369,12 @@ type VChunk = [VUnit]
 -- These are prefixes marked by a colon, like in @1:2.3.4@.
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
-data Version = Version { _vEpoch  :: Maybe Word
-                       , _vChunks :: [VChunk]
-                       , _vRel    :: [VChunk] } deriving (Eq,Show,Generic,NFData,Hashable)
+data Version = Version
+  { _vEpoch  :: Maybe Word
+  , _vChunks :: [VChunk]
+  , _vRel    :: [VChunk] }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 instance Semigroup Version where
   Version e c r <> Version e' c' r' = Version ((+) <$> e <*> e') (c ++ c') (r ++ r')
@@ -479,7 +487,9 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 --
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour, but so far
 -- internal tests show consistency.
-data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess deriving (Eq,Show,Generic,NFData,Hashable)
+data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 instance Ord Mess where
   compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
@@ -529,7 +539,9 @@ instance Semantic Mess where
 -- * A hyphen (-).
 -- * A plus (+). Stop using this outside of metadata if you are. Example: @10.2+0.93+1-1@
 -- * An underscore (_). Stop using this if you are.
-data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,Hashable)
+data VSep = VColon | VHyphen | VPlus | VUnder
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 -- | A synonym for the more verbose `megaparsec` error type.
 type ParsingError = ParseErrorBundle T.Text Void
