@@ -46,12 +46,12 @@ module Data.Versions
   , VSep(..)
     -- * Parsing Versions
   , ParsingError
-  , versioning, semver, version, mess
+  , versioning, semver, pvp, version, mess
     -- ** Megaparsec Parsers
     -- | For when you'd like to mix version parsing into some larger parser.
-  , versioning', semver', version', mess'
+  , versioning', semver', pvp', version', mess'
     -- * Pretty Printing
-  , prettyV, prettySemVer, prettyVer, prettyMess, errorBundlePretty
+  , prettyV, prettySemVer, prettyPVP, prettyVer, prettyMess, errorBundlePretty
     -- * Lenses
   , Lens'
   , Traversal'
@@ -74,6 +74,7 @@ import           Data.Char (isAlpha)
 import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
@@ -415,10 +416,10 @@ instance Semantic PVP where
   patch f (PVP (m :| []))           = (\pa' -> PVP $ m :| 0 : [pa']) <$> f 0
   {-# INLINE patch #-}
 
-  release f pvp = const pvp <$> f []
+  release f p = const p <$> f []
   {-# INLINE release #-}
 
-  meta f pvp = const pvp <$> f []
+  meta f p = const p <$> f []
   {-# INLINE meta #-}
 
   semantic f (PVP (m :| rs)) = (\(SemVer ma mi pa _ _) -> PVP $ ma :| [mi, pa]) <$> f s
@@ -681,6 +682,14 @@ iunit = Digits . read <$> some digitChar
 sunit :: Parsec Void T.Text VUnit
 sunit = Str . T.pack <$> some letterChar
 
+-- | Parse a (Haskell) `PVP`, as defined above.
+pvp :: T.Text -> Either ParsingError PVP
+pvp = parse (pvp' <* eof) "PVP"
+
+-- | Internal megaparsec parser of `pvp`.
+pvp' :: Parsec Void T.Text PVP
+pvp' = L.lexeme space (PVP . NEL.fromList <$> L.decimal `sepBy` char '.')
+
 -- | Parse a (General) `Version`, as defined above.
 version :: T.Text -> Either ParsingError Version
 version = parse (version' <* eof) "Version"
@@ -733,6 +742,10 @@ prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+
+-- | Convert a `PVP` back to its textual representation.
+prettyPVP :: PVP -> T.Text
+prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> T.Text
