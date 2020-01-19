@@ -1,14 +1,15 @@
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types        #-}
+{-# LANGUAGE CPP                #-}
+{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE Rank2Types         #-}
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2019
+-- Copyright : (c) Colin Woodbury, 2015 - 2020
 -- License   : BSD3
--- Maintainer: Colin Woodbury <colingw@gmail.com>
+-- Maintainer: Colin Woodbury <colin@fosskers.ca>
 --
 -- A library for parsing and comparing software version numbers.
 --
@@ -30,53 +31,54 @@
 --
 -- == Using the Parsers
 -- In general, `versioning` is the function you want. It attempts to parse a
--- given @Text@ using the three individual parsers, `semver`, `version` and
+-- given `T.Text` using the three individual parsers, `semver`, `version` and
 -- `mess`. If one fails, it tries the next. If you know you only want to parse
 -- one specific version type, use that parser directly (e.g. `semver`).
 
 module Data.Versions
-    (
-      -- * Types
-      Versioning(..)
-    , SemVer(..)
-    , Version(..)
-    , Mess(..)
-    , VUnit(..), digits, str
-    , VChunk
-    , VSep(..)
-      -- * Parsing Versions
-    , ParsingError
-    , versioning, semver, version, mess
-      -- ** Megaparsec Parsers
-      -- | For when you'd like to mix version parsing into some larger parser.
-    , versioning', semver', version', mess'
-      -- * Pretty Printing
-    , prettyV, prettySemVer, prettyVer, prettyMess, errorBundlePretty
-      -- * Lenses
-    , Lens'
-    , Traversal'
-    , Semantic(..)
-      -- ** Traversing Text
-      -- | When traversing `T.Text`, leveraging its `Semantic` instance will
-      -- likely benefit you more than using these Traversals directly.
-    , _Versioning, _SemVer, _Version, _Mess
-      -- ** Versioning Traversals
-    , _Ideal, _General, _Complex
-      -- ** (General) Version Lenses
-    , epoch
-      -- ** Misc. Lenses / Traversals
-    , _Digits, _Str
-    ) where
+  ( -- * Types
+    Versioning(..)
+  , SemVer(..)
+  , PVP(..)
+  , Version(..)
+  , Mess(..)
+  , VUnit(..), digits, str
+  , VChunk
+  , VSep(..)
+    -- * Parsing Versions
+  , ParsingError
+  , versioning, semver, pvp, version, mess
+    -- ** Megaparsec Parsers
+    -- | For when you'd like to mix version parsing into some larger parser.
+  , versioning', semver', pvp', version', mess'
+    -- * Pretty Printing
+  , prettyV, prettySemVer, prettyPVP, prettyVer, prettyMess, errorBundlePretty
+    -- * Lenses
+  , Lens'
+  , Traversal'
+  , Semantic(..)
+    -- ** Traversing Text
+    -- | When traversing `T.Text`, leveraging its `Semantic` instance will
+    -- likely benefit you more than using these Traversals directly.
+  , _Versioning, _SemVer, _Version, _Mess
+    -- ** Versioning Traversals
+  , _Ideal, _General, _Complex
+    -- ** (General) Version Lenses
+  , epoch
+    -- ** Misc. Lenses / Traversals
+  , _Digits, _Str
+  ) where
 
 import           Control.DeepSeq
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
-import           Data.Hashable
+import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
+import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
-import           Data.Void
-import           Data.Word (Word)
-import           GHC.Generics
+import           Data.Void (Void)
+import           GHC.Generics (Generic)
 import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -92,7 +94,7 @@ import           Data.Semigroup
 -- composed. This is useful for specifying custom behaviour for when a certain
 -- parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
-  deriving (Eq,Show,Generic,NFData,Hashable)
+  deriving (Eq, Show, Generic, NFData, Hashable)
 
 -- | Comparison of @Ideal@s is always well defined.
 --
@@ -248,12 +250,15 @@ instance Semantic T.Text where
   meta     = _Versioning . meta
   semantic = _SemVer
 
+--------------------------------------------------------------------------------
+-- (Ideal) SemVer
+
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
 --
 -- Legal semvers are of the form: MAJOR.MINOR.PATCH-PREREL+META
 --
--- Example: 1.2.3-r1+commithash
+-- Example: @1.2.3-r1+commithash@
 --
 -- Extra Rules:
 --
@@ -264,11 +269,14 @@ instance Semantic T.Text where
 -- 3. PREREL and META strings may only contain ASCII alphanumerics.
 --
 -- For more information, see http://semver.org
-data SemVer = SemVer { _svMajor  :: Word
-                     , _svMinor  :: Word
-                     , _svPatch  :: Word
-                     , _svPreRel :: [VChunk]
-                     , _svMeta   :: [VChunk] } deriving (Show,Generic,NFData,Hashable)
+data SemVer = SemVer
+  { _svMajor  :: Word
+  , _svMinor  :: Word
+  , _svPatch  :: Word
+  , _svPreRel :: [VChunk]
+  , _svMeta   :: [VChunk] }
+  deriving stock (Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
 instance Eq SemVer where
@@ -320,7 +328,9 @@ instance Semantic SemVer where
 -- | A single unit of a Version. May be digits or a string of characters. Groups
 -- of these are called `VChunk`s, and are the identifiers separated by periods
 -- in the source.
-data VUnit = Digits Word | Str T.Text deriving (Eq,Show,Read,Ord,Generic,NFData,Hashable)
+data VUnit = Digits Word | Str T.Text
+  deriving stock (Eq, Show, Read, Ord, Generic)
+  deriving anyclass (NFData, Hashable)
 
 instance Semigroup VUnit where
   Digits n <> Digits m = Digits $ n + m
@@ -357,6 +367,74 @@ _Str _ v       = pure v
 -- and numbers.
 type VChunk = [VUnit]
 
+--------------------------------------------------------------------------------
+-- (Haskell) PVP
+
+-- | A PVP version number specific to the Haskell ecosystem. Like SemVer this is
+-- a prescriptive scheme, and follows <https://pvp.haskell.org/ the PVP spec>.
+--
+-- Legal PVP values are of the form: MAJOR(.MAJOR.MINOR)
+--
+-- Example: @1.2.3@
+--
+-- Extra Rules:
+--
+-- 1. Each component must be a number.
+--
+-- 2. Only the first MAJOR component is actually necessary. Otherwise, there can
+--    be any number of components. @1.2.3.4.5.6.7@ is legal.
+--
+-- 3. Unlike SemVer there are two MAJOR components, and both indicate a breaking
+--    change. The spec otherwise designates no special meaning to components
+--    past the MINOR position.
+newtype PVP = PVP { _pComponents :: NonEmpty Word }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (NFData, Hashable)
+
+instance Semigroup PVP where
+  PVP (m :| r) <> PVP (m' :| r') = PVP $ (m + m') :| f r r'
+    where
+      f a []          = a
+      f [] b          = b
+      f (a:as) (b:bs) = (a + b) : f as bs
+
+instance Monoid PVP where
+  mempty = PVP (0 :| [])
+
+#if __GLASGOW_HASKELL__ < 841
+  mappend = (<>)
+#endif
+
+instance Semantic PVP where
+  major f (PVP (m :| rs)) = (\ma -> PVP $ ma :| rs) <$> f m
+  {-# INLINE major #-}
+
+  minor f (PVP (m :| mi : rs)) = (\mi' -> PVP $ m :| mi' : rs) <$> f mi
+  minor f (PVP (m :| []))      = (\mi' -> PVP $ m :| [mi']) <$> f 0
+  {-# INLINE minor #-}
+
+  patch f (PVP (m :| mi : pa : rs)) = (\pa' -> PVP $ m :| mi : pa' : rs) <$> f pa
+  patch f (PVP (m :| mi : []))      = (\pa' -> PVP $ m :| mi : [pa']) <$> f 0
+  patch f (PVP (m :| []))           = (\pa' -> PVP $ m :| 0 : [pa']) <$> f 0
+  {-# INLINE patch #-}
+
+  release f p = const p <$> f []
+  {-# INLINE release #-}
+
+  meta f p = const p <$> f []
+  {-# INLINE meta #-}
+
+  semantic f (PVP (m :| rs)) = (\(SemVer ma mi pa _ _) -> PVP $ ma :| [mi, pa]) <$> f s
+    where
+      s = case rs of
+        mi : pa : _ -> SemVer m mi pa [] []
+        mi : _      -> SemVer m mi 0  [] []
+        []          -> SemVer m 0 0   [] []
+  {-# INLINE semantic #-}
+
+--------------------------------------------------------------------------------
+-- (General) Version
+
 -- | A (General) Version.
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
 -- from version to version.
@@ -364,9 +442,12 @@ type VChunk = [VUnit]
 -- These are prefixes marked by a colon, like in @1:2.3.4@.
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
-data Version = Version { _vEpoch  :: Maybe Word
-                       , _vChunks :: [VChunk]
-                       , _vRel    :: [VChunk] } deriving (Eq,Show,Generic,NFData,Hashable)
+data Version = Version
+  { _vEpoch  :: Maybe Word
+  , _vChunks :: [VChunk]
+  , _vRel    :: [VChunk] }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 instance Semigroup Version where
   Version e c r <> Version e' c' r' = Version ((+) <$> e <*> e') (c ++ c') (r ++ r')
@@ -468,6 +549,9 @@ epoch :: Lens' Version (Maybe Word)
 epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 {-# INLINE epoch #-}
 
+--------------------------------------------------------------------------------
+-- (Complex) Mess
+
 -- | A (Complex) Mess. This is a /descriptive/ parser, based on examples of
 -- stupidly crafted version numbers used in the wild.
 --
@@ -479,7 +563,9 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 --
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour, but so far
 -- internal tests show consistency.
-data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess deriving (Eq,Show,Generic,NFData,Hashable)
+data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
 
 instance Ord Mess where
   compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
@@ -529,7 +615,12 @@ instance Semantic Mess where
 -- * A hyphen (-).
 -- * A plus (+). Stop using this outside of metadata if you are. Example: @10.2+0.93+1-1@
 -- * An underscore (_). Stop using this if you are.
-data VSep = VColon | VHyphen | VPlus | VUnder deriving (Eq,Show,Generic,NFData,Hashable)
+data VSep = VColon | VHyphen | VPlus | VUnder
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
+
+--------------------------------------------------------------------------------
+-- Parsing
 
 -- | A synonym for the more verbose `megaparsec` error type.
 type ParsingError = ParseErrorBundle T.Text Void
@@ -593,6 +684,14 @@ iunit = Digits . read <$> some digitChar
 sunit :: Parsec Void T.Text VUnit
 sunit = Str . T.pack <$> some letterChar
 
+-- | Parse a (Haskell) `PVP`, as defined above.
+pvp :: T.Text -> Either ParsingError PVP
+pvp = parse (pvp' <* eof) "PVP"
+
+-- | Internal megaparsec parser of `pvp`.
+pvp' :: Parsec Void T.Text PVP
+pvp' = L.lexeme space (PVP . NEL.fromList <$> L.decimal `sepBy` char '.')
+
 -- | Parse a (General) `Version`, as defined above.
 version :: T.Text -> Either ParsingError Version
 version = parse (version' <* eof) "Version"
@@ -645,6 +744,10 @@ prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+
+-- | Convert a `PVP` back to its textual representation.
+prettyPVP :: PVP -> T.Text
+prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> T.Text

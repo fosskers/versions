@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               versions
-version:            3.5.1.1
+version:            3.5.2
 synopsis:           Types and parsers for software version numbers.
 description:
   A library for parsing and comparing software version numbers. We like to give
@@ -38,7 +38,7 @@ common commons
     -Wincomplete-uni-patterns
 
   build-depends:
-    , base        >=4.8 && <4.14
+    , base        >=4.10 && <4.14
     , megaparsec  >=7
     , text        >=1.2
 

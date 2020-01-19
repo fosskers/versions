@@ -92,7 +92,7 @@ semverOrd = [ "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta"
 -- Logically, these are the same package, but for those 5 packages, they
 -- aren't.
 cabalOrd :: [T.Text]
-cabalOrd = [ "0.2", "0.2.0", "0.2.0.0" ]
+cabalOrd = [ "0", "0.2", "0.2.0", "0.2.0.0" ]
 
 versionOrd :: [T.Text]
 versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1", "2" ]
@@ -102,8 +102,8 @@ suite = testGroup "Tests"
   [ testGroup "Property Tests"
     [ testGroup "SemVer - Monoid" $
       map (uncurry testProperty) . unbatch $ monoid (SemVer 1 2 3 [] [])
-    , testProperty "SemVer - Arbitrary" $ \a -> isRight . fmap (== a) $ semver (prettySemVer a)
-    , testProperty "Version - Arbitrary" $ \a -> isRight . fmap (== a) $ version (prettyVer a)
+    , testProperty "SemVer - Arbitrary" $ \a -> semver (prettySemVer a) == Right a
+    , testProperty "Version - Arbitrary" $ \a -> version (prettyVer a) == Right a
     -- , testGroup "Version - Monoid" $
     --   map (\(name, test) -> testProperty name test) . unbatch $ monoid (Version (Just 1) [[digits 2], [digits 3]])
     , testGroup "VUnit - Monoid" $
@@ -124,6 +124,13 @@ suite = testGroup "Tests"
       , testGroup "Whitespace Handling"
         [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] [])
         ]
+      ]
+    , testGroup "(Haskell) PVP"
+      [ testGroup "Good PVPs" $
+        map (\s -> testCase (T.unpack s) $ isomorphPVP s) cabalOrd
+      , testGroup "Comparisons" $
+        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp pvp a b)
+        (zip cabalOrd $ tail cabalOrd)
       ]
     , testGroup "(General) Versions"
       [ testGroup "Good Versions" $
@@ -190,6 +197,9 @@ isomorphV t = Right t @=? (prettyVer <$> version t)
 -- | Does pretty-printing return a SemVer to its original form?
 isomorphSV :: T.Text -> Assertion
 isomorphSV t = Right t @=? (prettySemVer <$> semver t)
+
+isomorphPVP :: T.Text -> Assertion
+isomorphPVP t = Right t @=? (prettyPVP <$> pvp t)
 
 isomorphM :: T.Text -> Assertion
 isomorphM t =  Right t @=? (prettyMess <$> mess t)
