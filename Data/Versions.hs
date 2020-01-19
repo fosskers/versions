@@ -385,7 +385,7 @@ type VChunk = [VUnit]
 -- 3. Unlike SemVer there are two MAJOR components, and both indicate a
 --    breaking change.
 newtype PVP = PVP { _pComponents :: NonEmpty Word }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
 instance Semigroup PVP where
@@ -401,6 +401,33 @@ instance Monoid PVP where
 #if __GLASGOW_HASKELL__ < 841
   mappend = (<>)
 #endif
+
+instance Semantic PVP where
+  major f (PVP (m :| rs)) = (\ma -> PVP $ ma :| rs) <$> f m
+  {-# INLINE major #-}
+
+  minor f (PVP (m :| mi : rs)) = (\mi' -> PVP $ m :| mi' : rs) <$> f mi
+  minor f (PVP (m :| []))      = (\mi' -> PVP $ m :| [mi']) <$> f 0
+  {-# INLINE minor #-}
+
+  patch f (PVP (m :| mi : pa : rs)) = (\pa' -> PVP $ m :| mi : pa' : rs) <$> f pa
+  patch f (PVP (m :| mi : []))      = (\pa' -> PVP $ m :| mi : [pa']) <$> f 0
+  patch f (PVP (m :| []))           = (\pa' -> PVP $ m :| 0 : [pa']) <$> f 0
+  {-# INLINE patch #-}
+
+  release f pvp = const pvp <$> f []
+  {-# INLINE release #-}
+
+  meta f pvp = const pvp <$> f []
+  {-# INLINE meta #-}
+
+  semantic f (PVP (m :| rs)) = (\(SemVer ma mi pa _ _) -> PVP $ ma :| [mi, pa]) <$> f s
+    where
+      s = case rs of
+        mi : pa : _ -> SemVer m mi pa [] []
+        mi : _      -> SemVer m mi 0  [] []
+        []          -> SemVer m 0 0   [] []
+  {-# INLINE semantic #-}
 
 --------------------------------------------------------------------------------
 -- (General) Version
