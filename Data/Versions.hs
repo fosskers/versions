@@ -7,9 +7,9 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2019
+-- Copyright : (c) Colin Woodbury, 2015 - 2020
 -- License   : BSD3
--- Maintainer: Colin Woodbury <colingw@gmail.com>
+-- Maintainer: Colin Woodbury <colin@fosskers.ca>
 --
 -- A library for parsing and comparing software version numbers.
 --
@@ -31,7 +31,7 @@
 --
 -- == Using the Parsers
 -- In general, `versioning` is the function you want. It attempts to parse a
--- given @Text@ using the three individual parsers, `semver`, `version` and
+-- given `T.Text` using the three individual parsers, `semver`, `version` and
 -- `mess`. If one fails, it tries the next. If you know you only want to parse
 -- one specific version type, use that parser directly (e.g. `semver`).
 
@@ -39,6 +39,7 @@ module Data.Versions
   ( -- * Types
     Versioning(..)
   , SemVer(..)
+  , PVP(..)
   , Version(..)
   , Mess(..)
   , VUnit(..), digits, str
@@ -257,7 +258,7 @@ instance Semantic T.Text where
 --
 -- Legal semvers are of the form: MAJOR.MINOR.PATCH-PREREL+META
 --
--- Example: 1.2.3-r1+commithash
+-- Example: @1.2.3-r1+commithash@
 --
 -- Extra Rules:
 --
@@ -372,19 +373,20 @@ type VChunk = [VUnit]
 -- | A PVP version number specific to the Haskell ecosystem. Like SemVer this is
 -- a prescriptive scheme, and follows <https://pvp.haskell.org/ the PVP spec>.
 --
--- Legal PVP values are of the form: MAJOR.MAJOR.MINOR(.PATCH)
+-- Legal PVP values are of the form: MAJOR(.MAJOR.MINOR)
 --
--- Example: 1.2.3.4
+-- Example: @1.2.3@
 --
 -- Extra Rules:
 --
 -- 1. Each component must be a number.
 --
 -- 2. Only the first MAJOR component is actually necessary. Otherwise, there can
---    be any number of components.
+--    be any number of components. @1.2.3.4.5.6.7@ is legal.
 --
--- 3. Unlike SemVer there are two MAJOR components, and both indicate a
---    breaking change.
+-- 3. Unlike SemVer there are two MAJOR components, and both indicate a breaking
+--    change. The spec otherwise designates no special meaning to components
+--    past the MINOR position.
 newtype PVP = PVP { _pComponents :: NonEmpty Word }
   deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (NFData, Hashable)
