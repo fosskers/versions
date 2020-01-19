@@ -73,6 +73,7 @@ import           Data.Bool (bool)
 import           Data.Char (isAlpha)
 import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
+import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
@@ -247,6 +248,9 @@ instance Semantic T.Text where
   meta     = _Versioning . meta
   semantic = _SemVer
 
+--------------------------------------------------------------------------------
+-- (Ideal) SemVer
+
 -- | An (Ideal) version number that conforms to Semantic Versioning.
 -- This is a /prescriptive/ parser, meaning it follows the SemVer standard.
 --
@@ -360,6 +364,46 @@ _Str _ v       = pure v
 -- | A logical unit of a version number. Can consist of multiple letters
 -- and numbers.
 type VChunk = [VUnit]
+
+--------------------------------------------------------------------------------
+-- (Haskell) PVP
+
+-- | A PVP version number specific to the Haskell ecosystem. Like SemVer this is
+-- a prescriptive scheme, and follows <https://pvp.haskell.org/ the PVP spec>.
+--
+-- Legal PVP values are of the form: MAJOR.MAJOR.MINOR(.PATCH)
+--
+-- Example: 1.2.3.4
+--
+-- Extra Rules:
+--
+-- 1. Each component must be a number.
+--
+-- 2. Only the first MAJOR component is actually necessary. Otherwise, there can
+--    be any number of components.
+--
+-- 3. Unlike SemVer there are two MAJOR components, and both indicate a
+--    breaking change.
+newtype PVP = PVP { _pComponents :: NonEmpty Word }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
+
+instance Semigroup PVP where
+  PVP (m :| r) <> PVP (m' :| r') = PVP $ (m + m') :| f r r'
+    where
+      f a []          = a
+      f [] b          = b
+      f (a:as) (b:bs) = (a + b) : f as bs
+
+instance Monoid PVP where
+  mempty = PVP (0 :| [])
+
+#if __GLASGOW_HASKELL__ < 841
+  mappend = (<>)
+#endif
+
+--------------------------------------------------------------------------------
+-- (General) Version
 
 -- | A (General) Version.
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
@@ -475,6 +519,9 @@ epoch :: Lens' Version (Maybe Word)
 epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 {-# INLINE epoch #-}
 
+--------------------------------------------------------------------------------
+-- (Complex) Mess
+
 -- | A (Complex) Mess. This is a /descriptive/ parser, based on examples of
 -- stupidly crafted version numbers used in the wild.
 --
@@ -541,6 +588,9 @@ instance Semantic Mess where
 data VSep = VColon | VHyphen | VPlus | VUnder
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
+
+--------------------------------------------------------------------------------
+-- Parsing
 
 -- | A synonym for the more verbose `megaparsec` error type.
 type ParsingError = ParseErrorBundle T.Text Void
