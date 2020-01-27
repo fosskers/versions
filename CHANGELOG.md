@@ -1,5 +1,8 @@
 # Changelog
 
+## 3.5.3
+- GHC 8.10 support.
+
 ## 3.5.2
 - Added a new `PVP` type and parsers.
 
