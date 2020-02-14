@@ -15,7 +15,7 @@ jobs:
       - name: Cache dependencies
         uses: actions/cache@v1
         with:
-          path: ~/.stack-work
+          path: ~/.stack
           key: ${{ runner.os }}-${{ hashFiles('stack.yaml') }}
           restore-keys: |
             ${{ runner.os }}-
