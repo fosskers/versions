@@ -21,7 +21,7 @@ description:
   the best constraints on comparisons.
 
 category:           Data
-homepage:           https://gitlab.com/fosskers/versions
+homepage:           https://github.com/fosskers/versions
 author:             Colin Woodbury
 maintainer:         colin@fosskers.ca
 license:            BSD-3-Clause
