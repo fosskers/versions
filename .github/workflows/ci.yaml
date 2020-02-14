@@ -1,5 +1,9 @@
 name: Build and Tests
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - master
 
 jobs:
   build:
@@ -8,7 +12,17 @@ jobs:
     steps:
       - name: Setup Stack
         uses: mstksg/setup-stack@v1
+
       - name: Clone project
         uses: actions/checkout@v2
+
+      - name: Cache dependencies
+        uses: actions/cache@v1
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-${{ hashFiles('stack.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-
+
       - name: Build and run tests
         run: "stack test --fast --no-terminal"
