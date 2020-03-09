@@ -302,7 +302,7 @@ instance Semigroup SemVer where
 instance Monoid SemVer where
   mempty = SemVer 0 0 0 [] []
 
-#if __GLASGOW_HASKELL__ < 841
+#if !MIN_VERSION_base(4,11,0)
   mappend = (<>)
 #endif
 
@@ -341,7 +341,7 @@ instance Semigroup VUnit where
 instance Monoid VUnit where
   mempty = Str ""
 
-#if __GLASGOW_HASKELL__ < 841
+#if !MIN_VERSION_base(4,11,0)
   mappend = (<>)
 #endif
 
@@ -401,7 +401,7 @@ instance Semigroup PVP where
 instance Monoid PVP where
   mempty = PVP (0 :| [])
 
-#if __GLASGOW_HASKELL__ < 841
+#if !MIN_VERSION_base(4,11,0)
   mappend = (<>)
 #endif
 
@@ -455,7 +455,7 @@ instance Semigroup Version where
 instance Monoid Version where
   mempty = Version Nothing [] []
 
-#if __GLASGOW_HASKELL__ < 841
+#if !MIN_VERSION_base(4,11,0)
   mappend = (<>)
 #endif
 
