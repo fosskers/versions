@@ -1,6 +1,7 @@
 versions
 ========
 
+![](https://github.com/fosskers/versions/workflows/Tests/badge.svg)
 [![Hackage](https://img.shields.io/hackage/v/versions.svg?style=flat)](https://hackage.haskell.org/package/versions)
 [![Stackage Nightly](http://stackage.org/package/versions/badge/nightly)](http://stackage.org/nightly/package/versions)
 [![Stackage LTS](http://stackage.org/package/versions/badge/lts)](http://stackage.org/lts/package/versions)
