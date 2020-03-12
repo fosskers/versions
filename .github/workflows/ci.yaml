@@ -10,6 +10,11 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
+      - name: Setup GHC
+        uses: actions/setup-haskell
+        with:
+          ghc-version: "8.8.2"
+
       - name: Setup Stack
         uses: mstksg/setup-stack@v1
 
@@ -24,9 +29,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-
 
-      - name: Cache size
-        run: |
-          du -sh ~/.stack
-
       - name: Build and run tests
-        run: "stack test --fast --no-terminal"
+        run: "stack test --fast --no-terminal --system-ghc"
+
+      - name: Cache size
+        run: "du -sh ~/.stack"
