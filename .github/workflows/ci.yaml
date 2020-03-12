@@ -13,7 +13,7 @@ jobs:
       - name: Setup GHC
         uses: actions/setup-haskell@v1
         with:
-          ghc-version: "8.8.2"
+          ghc-version: "8.8.3"
 
       - name: Setup Stack
         uses: mstksg/setup-stack@v1
@@ -31,6 +31,3 @@ jobs:
 
       - name: Build and run tests
         run: "stack test --fast --no-terminal --system-ghc"
-
-      - name: Cache size
-        run: "du -sh ~/.stack"
