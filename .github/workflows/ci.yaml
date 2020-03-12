@@ -10,6 +10,11 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
+      - name: Test our GHC
+        run: |
+          uname -a
+          which ghc
+
       - name: Setup Stack
         uses: mstksg/setup-stack@v1
 
@@ -23,6 +28,10 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('stack.yaml') }}
           restore-keys: |
             ${{ runner.os }}-
+
+      - name: Cache size
+        run: |
+          du -sh ~/.stack
 
       - name: Build and run tests
         run: "stack test --fast --no-terminal"
