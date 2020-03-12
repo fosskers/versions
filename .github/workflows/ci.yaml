@@ -10,11 +10,6 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
-      - name: Test our GHC
-        run: |
-          uname -a
-          which ghc
-
       - name: Setup Stack
         uses: mstksg/setup-stack@v1
 
