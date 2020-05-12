@@ -10,8 +10,6 @@ import qualified Data.Text as T
 import           Data.Versions
 import           Lens.Micro
 import           Test.QuickCheck
-import           Test.QuickCheck.Checkers
-import           Test.QuickCheck.Classes
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
@@ -33,15 +31,9 @@ simplify = map fold . groupBy f
         f (Str _) (Str _)       = True
         f _ _                   = False
 
-instance EqProp SemVer where
-  a =-= b = eq a b
-
 instance Arbitrary VUnit where
   arbitrary = frequency [ (1, Digits . (+ 1) <$> arbitrary) , (1, s) ]
     where s = Str . T.pack . map unletter <$> resize 10 (listOf1 arbitrary)
-
-instance EqProp VUnit where
-  a =-= b = eq a b
 
 -- | An ASCII letter.
 newtype Letter = Letter { unletter :: Char }
@@ -51,9 +43,6 @@ instance Arbitrary Letter where
 
 instance Arbitrary Version where
   arbitrary = Version <$> arbitrary <*> chunks <*> chunks
-
-instance EqProp Version where
-  a =-= b = eq a b
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
@@ -100,14 +89,10 @@ versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1", "2" ]
 suite :: TestTree
 suite = testGroup "Tests"
   [ testGroup "Property Tests"
-    [ testGroup "SemVer - Monoid" $
-      map (uncurry testProperty) . unbatch $ monoid (SemVer 1 2 3 [] [])
-    , testProperty "SemVer - Arbitrary" $ \a -> semver (prettySemVer a) == Right a
+    [ testProperty "SemVer - Arbitrary" $ \a -> semver (prettySemVer a) == Right a
     , testProperty "Version - Arbitrary" $ \a -> version (prettyVer a) == Right a
     -- , testGroup "Version - Monoid" $
     --   map (\(name, test) -> testProperty name test) . unbatch $ monoid (Version (Just 1) [[digits 2], [digits 3]])
-    , testGroup "VUnit - Monoid" $
-      map (uncurry testProperty) . unbatch $ monoid (Digits 0)
     ]
   , testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"

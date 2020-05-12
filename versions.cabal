@@ -57,7 +57,6 @@ test-suite versions-test
   ghc-options:    -threaded -with-rtsopts=-N
   build-depends:
     , base-prelude
-    , checkers          >=0.4
     , microlens         >=0.4
     , QuickCheck        >=2.9
     , tasty             >=0.10.1.2
