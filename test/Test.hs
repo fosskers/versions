@@ -1,13 +1,16 @@
-{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
 
-import           BasePrelude hiding (Version, try)
+import           Data.Char (chr)
+import           Data.Either (isLeft)
+import           Data.Foldable (fold)
+import           Data.List (groupBy)
 import qualified Data.Text as T
 import           Data.Versions
+import           Data.Void (Void)
 import           Lens.Micro
 import           Test.QuickCheck
 import           Test.Tasty

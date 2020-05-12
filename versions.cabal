@@ -56,7 +56,6 @@ test-suite versions-test
   hs-source-dirs: test
   ghc-options:    -threaded -with-rtsopts=-N
   build-depends:
-    , base-prelude
     , microlens         >=0.4
     , QuickCheck        >=2.9
     , tasty             >=0.10.1.2
