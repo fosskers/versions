@@ -38,6 +38,7 @@
 module Data.Versions
   ( -- * Types
     Versioning(..)
+  , isIdeal, isGeneral, isComplex
   , SemVer(..)
   , PVP(..)
   , Version(..)
@@ -95,6 +96,21 @@ import           Data.Semigroup
 -- parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
   deriving (Eq, Show, Generic, NFData, Hashable)
+
+-- | Short-hand for detecting a `SemVer`.
+isIdeal :: Versioning -> Bool
+isIdeal (Ideal _) = True
+isIdeal _         = False
+
+-- | Short-hand for detecting a `Version`.
+isGeneral :: Versioning -> Bool
+isGeneral (General _) = True
+isGeneral _           = False
+
+-- | Short-hand for detecting a `Mess`.
+isComplex :: Versioning -> Bool
+isComplex (Complex _) = True
+isComplex _           = False
 
 -- | Comparison of @Ideal@s is always well defined.
 --

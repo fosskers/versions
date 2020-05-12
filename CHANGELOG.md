@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.5.4
+
+#### Added
+
+- The functions `isIdeal`, `isGeneral`, and `isComplex` for `Bool`-based
+  inspection of parse results.
+
 ## 3.5.3
 - GHC 8.10 support.
 
