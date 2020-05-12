@@ -1,11 +1,13 @@
 # Changelog
 
-## 3.5.4
+## Unreleased
 
 #### Added
 
 - The functions `isIdeal`, `isGeneral`, and `isComplex` for `Bool`-based
   inspection of parse results.
+- `messMajor`, `messMinor`, `messPatch`, and `messPatchChunk` for improved
+  introspection into `Mess` values.
 
 ## 3.5.3
 - GHC 8.10 support.

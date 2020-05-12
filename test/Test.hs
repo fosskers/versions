@@ -138,6 +138,18 @@ suite = testGroup "Tests"
       , testGroup "Comparisons" $
         map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) $
         zip messComps (tail messComps)
+      , testGroup "SemVer-like Value Extraction"
+        [ testCase "messMajor" $
+          (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messMajor) @?= Just 1
+        , testCase "messMinor" $
+          (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messMinor) @?= Just 6
+        , testCase "messPatch - Good" $
+          (hush (mess "1.6.0+2014+m872b87e73dfb-1") >>= messPatch) @?= Just 0
+        , testCase "messPatch - Bad" $
+          (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messPatch) @?= Nothing
+        , testCase "messPatchChunk" $
+          (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messPatchChunk) @?= Just [Digits 0, Str "a"]
+        ]
       ]
     , testGroup "Mixed Versioning"
       [ testGroup "Identification"
@@ -159,8 +171,10 @@ suite = testGroup "Tests"
         , testCase "1.2.3-1   < 2+0007-1"  $ comp versioning "1.2.3-1" "2+0007-1"
         , testCase "1.2.3r1-1 < 2+0007-1"  $ comp versioning "1.2.3r1-1" "2+0007-1"
         , testCase "1.2-5 < 1.2.3-1"       $ comp versioning "1.2-5" "1.2.3-1"
-        , testCase "1.6.0a+2014+m872b87e73dfb-1 < 1.6.0-1"
-          $ comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
+        , testCase "1.6.0a+2014+m872b87e73dfb-1 < 1.6.0-1" $ do
+            print $ versioning "1.6.0a+2014+m872b87e73dfb-1"
+            print $ mess "1.6.0-1"
+            comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
         ]
       ]
     , testGroup "Lenses and Traversals"
@@ -240,3 +254,7 @@ versionGrab :: Parsec Void T.Text Versioning
 versionGrab = manyTill anySingle (try finished) *> ver
   where finished = char '-' *> lookAhead digitChar
         ver = fmap Ideal semver' <|> fmap General version' <|> fmap Complex mess'
+
+hush :: Either a b -> Maybe b
+hush (Left _)  = Nothing
+hush (Right b) = Just b

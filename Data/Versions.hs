@@ -37,12 +37,11 @@
 
 module Data.Versions
   ( -- * Types
-    Versioning(..)
-  , isIdeal, isGeneral, isComplex
+    Versioning(..), isIdeal, isGeneral, isComplex
   , SemVer(..)
   , PVP(..)
   , Version(..)
-  , Mess(..)
+  , Mess(..), messMajor, messMinor, messPatch, messPatchChunk
   , VUnit(..), digits, str
   , VChunk
   , VSep(..)
@@ -139,7 +138,9 @@ vFromS (SemVer m i p r _) = Version Nothing [[Digits m], [Digits i], [Digits p]]
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
 mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
-  where affix = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
+  where
+    affix :: Mess
+    affix = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
 
 instance Semantic Versioning where
   major f (Ideal v)   = Ideal   <$> major f v
@@ -577,11 +578,43 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 -- Unfortunately, @VChunk@s cannot be used here, as some developers have numbers
 -- like @1.003.04@ which make parsers quite sad.
 --
+-- Some `Mess` values have a shape that is tantalizingly close to a `SemVer`.
+-- Example: @1.6.0a+2014+m872b87e73dfb-1@. For values like these, we can extract
+-- the semver-compatible values out with `messMajor`, etc.
+--
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour, but so far
--- internal tests show consistency.
+-- internal tests show consistency. `messMajor`, etc., are used internally where
+-- appropriate to enhance accuracy.
 data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
+
+-- | Try to extract the "major" version number from `Mess`, as if it were a
+-- `SemVer`.
+messMajor :: Mess -> Maybe Word
+messMajor (VNode (m:_) _ _) = hush $ parse (digitsP <* eof) "Major" m
+messMajor _                 = Nothing
+
+-- | Try to extract the "minor" version number from `Mess`, as if it were a
+-- `SemVer`.
+messMinor :: Mess -> Maybe Word
+messMinor (VNode (_:m:_) _ _) = hush $ parse (digitsP <* eof) "Minor" m
+messMinor _                   = Nothing
+
+-- | Try to extract the "patch" version number from `Mess`, as if it were a
+-- `SemVer`.
+messPatch :: Mess -> Maybe Word
+messPatch (VNode (_:_:p:_) _ _) = hush $ parse (digitsP <* eof) "Patch" p
+messPatch _                     = Nothing
+
+-- | Okay, fine, say `messPatch` couldn't find a nice value. But some `Mess`es
+-- have a "proper" patch-plus-release-candidate value in their patch position,
+-- which is parsable as a `VChunk`.
+--
+-- Example: @1.6.0a+2014+m872b87e73dfb-1@ We should be able to extract @0a@ safely.
+messPatchChunk :: Mess -> Maybe VChunk
+messPatchChunk (VNode (_:_:p:_) _ _) = hush $ parse chunk "Chunk" p
+messPatchChunk _                     = Nothing
 
 instance Ord Mess where
   compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
@@ -798,3 +831,7 @@ opposite GT = LT
 -- Yes, `text-show` exists, but this reduces external dependencies.
 showt :: Show a => a -> T.Text
 showt = T.pack . show
+
+hush :: Either a b -> Maybe b
+hush (Left _)  = Nothing
+hush (Right b) = Just b
