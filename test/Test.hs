@@ -159,6 +159,8 @@ suite = testGroup "Tests"
         , testCase "1.2.3-1   < 2+0007-1"  $ comp versioning "1.2.3-1" "2+0007-1"
         , testCase "1.2.3r1-1 < 2+0007-1"  $ comp versioning "1.2.3r1-1" "2+0007-1"
         , testCase "1.2-5 < 1.2.3-1"       $ comp versioning "1.2-5" "1.2.3-1"
+        , testCase "1.6.0a+2014+m872b87e73dfb-1 < 1.6.0-1"
+          $ comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
         ]
       ]
     , testGroup "Lenses and Traversals"
