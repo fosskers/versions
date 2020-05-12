@@ -9,6 +9,10 @@
 - `messMajor`, `messMinor`, `messPatch`, and `messPatchChunk` for improved
   introspection into `Mess` values.
 
+#### Changed
+
+- Improved `Mess` comparison logic.
+
 ## 3.5.3
 - GHC 8.10 support.
 
