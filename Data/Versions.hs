@@ -121,15 +121,15 @@ isComplex _           = False
 -- and @Complex@ is well defined for the same reason. This implies comparison of
 -- @Ideal@ and @Complex@ is also well-defined.
 instance Ord Versioning where
-  compare (Ideal s)     (Ideal s')    = compare s s'
-  compare (General v)   (General v')  = compare v v'
-  compare (Complex m)   (Complex m')  = compare m m'
-  compare (Ideal s)     (General v)   = compare (vFromS s) v
-  compare (General v)   (Ideal s)     = opposite $ compare (vFromS s) v
-  compare (General v)   (Complex m)   = compare (mFromV v) m
-  compare (Complex m)   (General v)   = opposite $ compare (mFromV v) m
-  compare (Ideal s)     m@(Complex _) = compare (General $ vFromS s) m
-  compare m@(Complex _) (Ideal s)     = compare m (General $ vFromS s)
+  compare (Ideal s)     (Ideal s')   = compare s s'
+  compare (General v)   (General v') = compare v v'
+  compare (Complex m)   (Complex m') = compare m m'
+  compare (Ideal s)     (General v)  = compare (vFromS s) v
+  compare (General v)   (Ideal s)    = opposite $ compare (vFromS s) v
+  compare (General v)   (Complex m)  = compare (mFromV v) m
+  compare (Complex m)   (General v)  = opposite $ compare (mFromV v) m
+  compare (Ideal s)     (Complex m)  = semverAndMess s m
+  compare (Complex m) (Ideal s)      = opposite $ semverAndMess s m
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
@@ -141,6 +141,36 @@ mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
   where
     affix :: Mess
     affix = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
+
+-- | Special logic for when semver-like values can be extracted from a `Mess`.
+-- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
+-- and in some cases can offer better comparison results.
+semverAndMess :: SemVer -> Mess -> Ordering
+semverAndMess s@(SemVer ma mi pa _ _) m = case compare ma <$> messMajor m of
+  Nothing -> fallback
+  Just LT -> LT
+  Just GT -> GT
+  Just EQ -> case compare mi <$> messMinor m of
+    Nothing -> fallback
+    Just LT -> LT
+    Just GT -> GT
+    Just EQ -> case compare pa <$> messPatch m of
+      Just LT -> LT
+      Just GT -> GT
+      -- If they've been equal up to this point, the `Mess`
+      -- will by definition have more to it, meaning that
+      -- it's more likely to be newer, despite its poor shape.
+      Just EQ -> fallback
+      Nothing -> case messPatchChunk m of
+        Nothing             -> fallback
+        Just (Digits pa':_) -> case compare pa pa' of
+          LT -> LT
+          GT -> GT
+          EQ -> GT  -- This follows semver's rule!
+        Just _ -> fallback
+  where
+    fallback :: Ordering
+    fallback = compare (General $ vFromS s) (Complex m)
 
 instance Semantic Versioning where
   major f (Ideal v)   = Ideal   <$> major f v
