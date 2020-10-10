@@ -69,6 +69,7 @@ module Data.Versions
   , _Digits, _Str
   ) where
 
+import           Control.Applicative.Combinators.NonEmpty (sepBy1)
 import           Control.DeepSeq
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
@@ -79,7 +80,7 @@ import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
-import           Text.Megaparsec hiding (chunk)
+import           Text.Megaparsec hiding (chunk, sepBy1)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -133,14 +134,14 @@ instance Ord Versioning where
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
-vFromS (SemVer m i p r _) = Version Nothing [[Digits m], [Digits i], [Digits p]] r
+vFromS (SemVer m i p r _) = Version Nothing ([Digits m] :| [[Digits i], [Digits p]]) r
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
 mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
   where
     affix :: Mess
-    affix = VNode (chunksAsT v) VHyphen $ VLeaf (chunksAsT r)
+    affix = VNode (chunksAsT $ NEL.toList v) VHyphen $ VLeaf (chunksAsT r)
 
 -- | Special logic for when semver-like values can be extracted from a `Mess`.
 -- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
@@ -317,11 +318,11 @@ instance Semantic T.Text where
 --
 -- For more information, see http://semver.org
 data SemVer = SemVer
-  { _svMajor  :: Word
-  , _svMinor  :: Word
-  , _svPatch  :: Word
-  , _svPreRel :: [VChunk]
-  , _svMeta   :: [VChunk] }
+  { _svMajor  :: !Word
+  , _svMinor  :: !Word
+  , _svPatch  :: !Word
+  , _svPreRel :: ![VChunk]
+  , _svMeta   :: ![VChunk] }
   deriving stock (Show, Generic)
   deriving anyclass (NFData, Hashable)
 
@@ -490,21 +491,14 @@ instance Semantic PVP where
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
 data Version = Version
-  { _vEpoch  :: Maybe Word
-  , _vChunks :: [VChunk]
-  , _vRel    :: [VChunk] }
+  { _vEpoch  :: !(Maybe Word)
+  , _vChunks :: !(NonEmpty VChunk)
+  , _vRel    :: ![VChunk] }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
 instance Semigroup Version where
-  Version e c r <> Version e' c' r' = Version ((+) <$> e <*> e') (c ++ c') (r ++ r')
-
-instance Monoid Version where
-  mempty = Version Nothing [] []
-
-#if !MIN_VERSION_base(4,11,0)
-  mappend = (<>)
-#endif
+  Version e c r <> Version e' c' r' = Version ((+) <$> e <*> e') (c <> c') (r ++ r')
 
 -- | Set a `Version`'s epoch to `Nothing`.
 wipe :: Version -> Version
@@ -512,9 +506,6 @@ wipe v = v { _vEpoch = Nothing }
 
 -- | Customized.
 instance Ord Version where
-  -- | The obvious base case.
-  compare (Version _ [] []) (Version _ [] []) = EQ
-
   -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
   -- so we need to compare their actual version numbers.
   compare v0@(Version (Just 0) _ _) v1@(Version Nothing _ _) = compare (wipe v0) v1
@@ -530,53 +521,59 @@ instance Ord Version where
   compare v0@(Version (Just n) _ _) v1@(Version (Just m) _ _) | n == m = compare (wipe v0) (wipe v1)
                                                               | otherwise = compare n m
 
-  -- | If the two Versions were otherwise equal and recursed down this far,
-  -- we need to compare them by their "release" values.
-  compare (Version _ [] rs) (Version _ [] rs') = compare (Version Nothing rs []) (Version Nothing rs' [])
-
-  -- | If one side has run out of chunks to compare but the other hasn't,
-  -- the other must be newer.
-  compare Version{}  (Version _ [] _) = GT
-  compare (Version _ [] _) Version{}  = LT
-
   -- | The usual case. If first VChunks of each Version is equal, then we keep
   -- recursing. Otherwise, we don't need to check further. Consider @1.2@
   -- compared to @1.1.3.4.5.6@.
-  compare (Version _ (a:as) rs) (Version _ (b:bs) rs') = case f a b of
-    EQ  -> compare (Version Nothing as rs) (Version Nothing bs rs')
-    res -> res
-    where f [] [] = EQ
+  compare (Version _ as rs) (Version _ bs rs') = g (NEL.toList as) (NEL.toList bs)
+    where
+      g :: [VChunk] -> [VChunk] -> Ordering
+      -- | If the two Versions were otherwise equal and recursed down this far,
+      -- we need to compare them by their "release" values.
+      g [] [] = g rs rs'
 
-          -- | Opposite of the above. If we've recursed this far and one side
-          -- has fewer chunks, it must be the "greater" version. A Chunk break
-          -- only occurs in a switch from digits to letters and vice versa, so
-          -- anything "extra" must be an @rc@ marking or similar. Consider @1.1@
-          -- compared to @1.1rc1@.
-          f [] _  = GT
-          f _ []  = LT
+      -- | If one side has run out of chunks to compare but the other hasn't,
+      -- the other must be newer.
+      g _ []  = GT
+      g [] _  = LT
 
-          -- | The usual case.
-          f (Digits n:ns) (Digits m:ms) | n > m = GT
-                                        | n < m = LT
-                                        | otherwise = f ns ms
-          f (Str n:ns) (Str m:ms) | n > m = GT
-                                  | n < m = LT
-                                  | otherwise = f ns ms
+      -- | The usual case.
+      g (x:xs) (y:ys) = case f x y of
+        EQ  -> g xs ys
+        res -> res
 
-          -- | An arbitrary decision to prioritize digits over letters.
-          f (Digits _ :_) (Str _ :_) = GT
-          f (Str _ :_ ) (Digits _ :_) = LT
+      f :: [VUnit] -> [VUnit] -> Ordering
+      f [] [] = EQ
+
+      -- | Opposite of the above. If we've recursed this far and one side
+      -- has fewer chunks, it must be the "greater" version. A Chunk break
+      -- only occurs in a switch from digits to letters and vice versa, so
+      -- anything "extra" must be an @rc@ marking or similar. Consider @1.1@
+      -- compared to @1.1rc1@.
+      f [] _  = GT
+      f _ []  = LT
+
+      -- | The usual case.
+      f (Digits n:ns) (Digits m:ms) | n > m = GT
+                                    | n < m = LT
+                                    | otherwise = f ns ms
+      f (Str n:ns) (Str m:ms) | n > m = GT
+                              | n < m = LT
+                              | otherwise = f ns ms
+
+      -- | An arbitrary decision to prioritize digits over letters.
+      f (Digits _ :_) (Str _ :_) = GT
+      f (Str _ :_ ) (Digits _ :_) = LT
 
 instance Semantic Version where
-  major f (Version e ([Digits n] : cs) rs) = (\n' -> Version e ([Digits n'] : cs) rs) <$> f n
+  major f (Version e ([Digits n] :| cs) rs) = (\n' -> Version e ([Digits n'] :| cs) rs) <$> f n
   major _ v = pure v
   {-# INLINE major #-}
 
-  minor f (Version e (c : [Digits n] : cs) rs) = (\n' -> Version e (c : [Digits n'] : cs) rs) <$> f n
+  minor f (Version e (c :| [Digits n] : cs) rs) = (\n' -> Version e (c :| [Digits n'] : cs) rs) <$> f n
   minor _ v = pure v
   {-# INLINE minor #-}
 
-  patch f (Version e (c : d : [Digits n] : cs) rs) = (\n' -> Version e (c : d : [Digits n'] : cs) rs) <$> f n
+  patch f (Version e (c :| d : [Digits n] : cs) rs) = (\n' -> Version e (c :| d : [Digits n'] : cs) rs) <$> f n
   patch _ v = pure v
   {-# INLINE patch #-}
 
@@ -588,7 +585,7 @@ instance Semantic Version where
   meta _ v = pure v
   {-# INLINE meta #-}
 
-  semantic f (Version _ ([Digits a] : [Digits b] : [Digits c] : _) rs) = vFromS <$> f (SemVer a b c rs [])
+  semantic f (Version _ ([Digits a] :| [Digits b] : [Digits c] : _) rs) = vFromS <$> f (SemVer a b c rs [])
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -722,7 +719,7 @@ semver = parse (semver' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of `semver`.
 semver' :: Parsec Void T.Text SemVer
-semver' = L.lexeme space (SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData)
+semver' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digitsP :: Parsec Void T.Text Word
@@ -742,6 +739,9 @@ preRel = (char '-' *> chunks) <|> pure []
 
 metaData :: Parsec Void T.Text [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
+
+chunksNE :: Parsec Void T.Text (NonEmpty VChunk)
+chunksNE = chunk `sepBy1` char '.'
 
 chunks :: Parsec Void T.Text [VChunk]
 chunks = chunk `sepBy` char '.'
@@ -777,7 +777,7 @@ version = parse (version' <* eof) "Version"
 
 -- | Internal megaparsec parser of `version`.
 version' :: Parsec Void T.Text Version
-version' = L.lexeme space (Version <$> optional (try epochP) <*> chunks <*> preRel)
+version' = Version <$> optional (try epochP) <*> chunksNE <*> preRel
 
 epochP :: Parsec Void T.Text Word
 epochP = read <$> (some digitChar <* char ':')
@@ -831,7 +831,7 @@ prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> T.Text
 prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
-  where ver = intersperse "." $ chunksAsT cs
+  where ver = intersperse "." . chunksAsT $ NEL.toList cs
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         ep' = maybe "" (\e -> showt e <> ":") ep
 
