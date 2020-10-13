@@ -62,7 +62,7 @@ badVers :: [T.Text]
 badVers = ["", "1.2 "]
 
 messes :: [T.Text]
-messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2" ]
+messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2", "1.6.0a+2014+m872b87e73dfb-1" ]
 
 messComps :: [T.Text]
 messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
@@ -189,6 +189,8 @@ suite = testGroup "Tests"
           $ comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
         -- , testCase "1.11.0.git.20200404-1 < 1.11.0+20200830-1"
         --   $ comp versioning "1.11.0.git.20200404-1" "1.11.0+20200830-1"
+        , testCase "0.17.0+r8+gc41db5f1-1 < 0.17.0+r157+g584760cf-1"
+          $ comp versioning "0.17.0+r8+gc41db5f1-1" "0.17.0+r157+g584760cf-1"
         ]
       ]
     , testGroup "Lenses and Traversals"
@@ -205,21 +207,31 @@ suite = testGroup "Tests"
 
 -- | Does pretty-printing return a Versioning to its original form?
 isomorph :: T.Text -> Assertion
-isomorph t = Right t @=? (prettyV <$> versioning t)
+isomorph t = case prettyV <$> versioning t of
+  Right t' -> t @?= t'
+  Left e   -> assertBool (errorBundlePretty e) False
 
 -- | Does pretty-printing return a Version to its original form?
 isomorphV :: T.Text -> Assertion
-isomorphV t = Right t @=? (prettyVer <$> version t)
+isomorphV t = case prettyVer <$> version t of
+  Right t' -> t @?= t'
+  Left e   -> assertBool (errorBundlePretty e) False
 
 -- | Does pretty-printing return a SemVer to its original form?
 isomorphSV :: T.Text -> Assertion
-isomorphSV t = Right t @=? (prettySemVer <$> semver t)
+isomorphSV t = case prettySemVer <$> semver t of
+  Right t' -> t @?= t'
+  Left e   -> assertBool (errorBundlePretty e) False
 
 isomorphPVP :: T.Text -> Assertion
-isomorphPVP t = Right t @=? (prettyPVP <$> pvp t)
+isomorphPVP t = case prettyPVP <$> pvp t of
+  Right t' -> t @?= t'
+  Left e   -> assertBool (errorBundlePretty e) False
 
 isomorphM :: T.Text -> Assertion
-isomorphM t =  Right t @=? (prettyMess <$> mess t)
+isomorphM t = case prettyMess <$> mess t of
+  Right t' -> t @?= t'
+  Left e   -> assertBool (errorBundlePretty e) False
 
 comp :: Ord b => (T.Text -> Either a b) -> T.Text -> T.Text -> Assertion
 comp f a b = check $ (<) <$> f a <*> f b

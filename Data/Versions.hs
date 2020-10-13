@@ -31,7 +31,7 @@
 --
 -- == Using the Parsers
 -- In general, `versioning` is the function you want. It attempts to parse a
--- given `T.Text` using the three individual parsers, `semver`, `version` and
+-- given `Text` using the three individual parsers, `semver`, `version` and
 -- `mess`. If one fails, it tries the next. If you know you only want to parse
 -- one specific version type, use that parser directly (e.g. `semver`).
 
@@ -42,6 +42,7 @@ module Data.Versions
   , PVP(..)
   , Version(..)
   , Mess(..), messMajor, messMinor, messPatch, messPatchChunk
+  , MChunk(..)
   , VUnit(..), digits, str
   , VChunk
   , VSep(..)
@@ -58,7 +59,7 @@ module Data.Versions
   , Traversal'
   , Semantic(..)
     -- ** Traversing Text
-    -- | When traversing `T.Text`, leveraging its `Semantic` instance will
+    -- | When traversing `Text`, leveraging its `Semantic` instance will
     -- likely benefit you more than using these Traversals directly.
   , _Versioning, _SemVer, _Version, _Mess
     -- ** Versioning Traversals
@@ -71,6 +72,7 @@ module Data.Versions
 
 import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
+import           Control.Monad (void)
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
 import           Data.Foldable (fold)
@@ -78,6 +80,7 @@ import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NEL
+import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
@@ -139,12 +142,12 @@ vFromS (SemVer m i p r _) = Version Nothing ((Digits m :| []) :| [(Digits i :| [
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
-mFromV (Version e v r) = maybe affix (\a -> Mess (showt a :| []) $ Just (VColon, affix)) e
+mFromV (Version e v r) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ Just (VColon, affix)) e
   where
     affix :: Mess
-    affix = Mess (chunksAsT v) $ case NEL.nonEmpty r of
+    affix = Mess (chunksAsM v) $ case NEL.nonEmpty r of
       Nothing -> Nothing
-      Just r' -> Just (VHyphen, Mess (chunksAsT r') Nothing)
+      Just r' -> Just (VHyphen, Mess (chunksAsM r') Nothing)
 
 -- | Special logic for when semver-like values can be extracted from a `Mess`.
 -- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
@@ -213,22 +216,22 @@ instance Semantic Versioning where
 -- λ "1.2.3" & _Versioning . _Ideal . patch %~ (+ 1)  -- or just: "1.2.3" & patch %~ (+ 1)
 -- "1.2.4"
 -- @
-_Versioning :: Traversal' T.Text Versioning
+_Versioning :: Traversal' Text Versioning
 _Versioning f t = either (const (pure t)) (fmap prettyV . f) $ versioning t
 {-# INLINE _Versioning #-}
 
 -- | Traverse some Text for its inner SemVer.
-_SemVer :: Traversal' T.Text SemVer
+_SemVer :: Traversal' Text SemVer
 _SemVer f t = either (const (pure t)) (fmap prettySemVer . f) $ semver t
 {-# INLINE _SemVer #-}
 
 -- | Traverse some Text for its inner Version.
-_Version :: Traversal' T.Text Version
+_Version :: Traversal' Text Version
 _Version f t = either (const (pure t)) (fmap prettyVer . f) $ version t
 {-# INLINE _Version #-}
 
 -- | Traverse some Text for its inner Mess.
-_Mess :: Traversal' T.Text Mess
+_Mess :: Traversal' Text Mess
 _Mess f t = either (const (pure t)) (fmap prettyMess . f) $ mess t
 {-# INLINE _Mess #-}
 
@@ -293,7 +296,7 @@ class Semantic v where
   -- | A Natural Transformation into an proper `SemVer`.
   semantic :: Traversal' v SemVer
 
-instance Semantic T.Text where
+instance Semantic Text where
   major    = _Versioning . major
   minor    = _Versioning . minor
   patch    = _Versioning . patch
@@ -379,7 +382,7 @@ instance Semantic SemVer where
 -- | A single unit of a Version. May be digits or a string of characters. Groups
 -- of these are called `VChunk`s, and are the identifiers separated by periods
 -- in the source.
-data VUnit = Digits Word | Str T.Text
+data VUnit = Digits Word | Str Text
   deriving stock (Eq, Show, Read, Ord, Generic)
   deriving anyclass (NFData, Hashable)
 
@@ -401,7 +404,7 @@ digits :: Word -> VUnit
 digits = Digits
 
 -- | Smart constructor for a `VUnit` made of letters.
-str :: T.Text -> Maybe VUnit
+str :: Text -> Maybe VUnit
 str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
 
 _Digits :: Traversal' VUnit Word
@@ -409,7 +412,7 @@ _Digits f (Digits i) = Digits <$> f i
 _Digits _ v          = pure v
 {-# INLINE _Digits #-}
 
-_Str :: Traversal' VUnit T.Text
+_Str :: Traversal' VUnit Text
 _Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
 _Str _ v       = pure v
 {-# INLINE _Str #-}
@@ -599,14 +602,36 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 --------------------------------------------------------------------------------
 -- (Complex) Mess
 
+-- | Possible values of a section of a `Mess`. A numeric value is extracted if
+-- it could be, alongside the original text it came from. This preserves both
+-- `Ord` and pretty-print behaviour for versions like @1.003.0@.
+data MChunk
+  = MDigit Word Text
+  -- ^ A nice numeric value.
+  | MRev Word Text
+  -- ^ A numeric value preceeded by an @r@, indicating a revision.
+  | MPlain Text
+  -- ^ Anything else.
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
+
+instance Ord MChunk where
+  compare (MDigit a _) (MDigit b _) = compare a b
+  compare (MRev a _) (MRev b _)     = compare a b
+  compare (MPlain a) (MPlain b)     = compare a b
+  compare a b                       = compare (mchunkText a) (mchunkText b)
+
+-- | A total extraction of the `Text` from an `MChunk`.
+mchunkText :: MChunk -> Text
+mchunkText (MDigit _ t) = t
+mchunkText (MRev _ t)   = t
+mchunkText (MPlain t)   = t
+
 -- | A (Complex) Mess. This is a /descriptive/ parser, based on examples of
 -- stupidly crafted version numbers used in the wild.
 --
 -- Groups of letters/numbers, separated by a period, can be further separated by
 -- the symbols @_-+:@
---
--- Unfortunately, @VChunk@s cannot be used here, as some developers have numbers
--- like @1.003.04@ which make parsers quite sad.
 --
 -- Some `Mess` values have a shape that is tantalizingly close to a `SemVer`.
 -- Example: @1.6.0a+2014+m872b87e73dfb-1@. For values like these, we can extract
@@ -615,26 +640,27 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour, but so far
 -- internal tests show consistency. `messMajor`, etc., are used internally where
 -- appropriate to enhance accuracy.
-data Mess = Mess (NonEmpty T.Text) (Maybe (VSep, Mess))
+data Mess = Mess !(NonEmpty MChunk) !(Maybe (VSep, Mess))
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
 -- | Try to extract the "major" version number from `Mess`, as if it were a
 -- `SemVer`.
 messMajor :: Mess -> Maybe Word
-messMajor (Mess (m:|_) _) = hush $ parse (digitsP <* eof) "Major" m
+messMajor (Mess (MDigit i _ :| _) _) = Just i
+messMajor _                          = Nothing
 
 -- | Try to extract the "minor" version number from `Mess`, as if it were a
 -- `SemVer`.
 messMinor :: Mess -> Maybe Word
-messMinor (Mess (_:|m:_) _) = hush $ parse (digitsP <* eof) "Minor" m
-messMinor _                 = Nothing
+messMinor (Mess (_ :| MDigit i _ : _) _) = Just i
+messMinor _                              = Nothing
 
 -- | Try to extract the "patch" version number from `Mess`, as if it were a
 -- `SemVer`.
 messPatch :: Mess -> Maybe Word
-messPatch (Mess (_:|_:p:_) _) = hush $ parse (digitsP <* eof) "Patch" p
-messPatch _                   = Nothing
+messPatch (Mess (_ :| _ : MDigit i _ : _) _) = Just i
+messPatch _                                  = Nothing
 
 -- | Okay, fine, say `messPatch` couldn't find a nice value. But some `Mess`es
 -- have a "proper" patch-plus-release-candidate value in their patch position,
@@ -642,8 +668,8 @@ messPatch _                   = Nothing
 --
 -- Example: @1.6.0a+2014+m872b87e73dfb-1@ We should be able to extract @0a@ safely.
 messPatchChunk :: Mess -> Maybe VChunk
-messPatchChunk (Mess (_:|_:p:_) _) = hush $ parse chunk "Chunk" p
-messPatchChunk _                   = Nothing
+messPatchChunk (Mess (_ :| _ : MPlain p : _) _) = hush $ parse chunk "Chunk" p
+messPatchChunk _                                = Nothing
 
 instance Ord Mess where
   compare (Mess t1 Nothing) (Mess t2 Nothing) = compare t1 t2
@@ -656,17 +682,15 @@ instance Ord Mess where
     res -> res
 
 instance Semantic Mess where
-  major f v@(Mess (t :| ts) m) = either (const $ pure v) g $ parse digitsP "Major" t
-    where g n = (\n' -> Mess (showt n' :| ts) m) <$> f n
+  major f (Mess (MDigit n _ :| ts) m) = (\n' -> Mess (MDigit n' (showt n') :| ts) m) <$> f n
+  major _ v = pure v
   {-# INLINE major #-}
 
-  minor f v@(Mess (t0 :| t : ts) m) = either (const $ pure v) g $ parse digitsP "Minor" t
-    where g n = (\n' -> Mess (t0 :| showt n' : ts) m) <$> f n
+  minor f (Mess (t0 :| MDigit n _ : ts) m) = (\n' -> Mess (t0 :| MDigit n' (showt n') : ts) m) <$> f n
   minor _ v = pure v
   {-# INLINE minor #-}
 
-  patch f v@(Mess (t0 :| t1 : t : ts) m) = either (const $ pure v) g $ parse digitsP "Patch" t
-    where g n = (\n' -> Mess (t0 :| t1 : showt n' : ts) m) <$> f n
+  patch f (Mess (t0 :| t1 : MDigit n _ : ts) m) = (\n' -> Mess (t0 :| t1 : MDigit n' (showt n') : ts) m) <$> f n
   patch _ v = pure v
   {-# INLINE patch #-}
 
@@ -679,11 +703,8 @@ instance Semantic Mess where
   {-# INLINE meta #-}
 
   -- | Good luck.
-  semantic f v@(Mess (t0 :| t1 : t2 : _) _) = either (const $ pure v) (fmap (mFromV . vFromS)) $
-    (\a b c -> f $ SemVer a b c [] [])
-    <$> parse digitsP "Major" t0
-    <*> parse digitsP "Minor" t1
-    <*> parse digitsP "Patch" t2
+  semantic f (Mess (MDigit t0 _ :| MDigit t1 _ : MDigit t2 _ : _) _) =
+    mFromV . vFromS <$> (f $ SemVer t0 t1 t2 [] [])
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -702,59 +723,59 @@ data VSep = VColon | VHyphen | VPlus | VUnder
 -- Parsing
 
 -- | A synonym for the more verbose `megaparsec` error type.
-type ParsingError = ParseErrorBundle T.Text Void
+type ParsingError = ParseErrorBundle Text Void
 
--- | Parse a piece of `T.Text` into either an (Ideal) `SemVer`, a (General)
+-- | Parse a piece of `Text` into either an (Ideal) `SemVer`, a (General)
 -- `Version`, or a (Complex) `Mess`.
-versioning :: T.Text -> Either ParsingError Versioning
+versioning :: Text -> Either ParsingError Versioning
 versioning = parse versioning' "versioning"
 
 -- | Parse a `Versioning`. Assumes the version number is the last token in
 -- the string.
-versioning' :: Parsec Void T.Text Versioning
+versioning' :: Parsec Void Text Versioning
 versioning' = choice [ try (fmap Ideal semver''    <* eof)
                      , try (fmap General version'' <* eof)
                      , fmap Complex mess''         <* eof ]
 
 -- | Parse a (Ideal) Semantic Version.
-semver :: T.Text -> Either ParsingError SemVer
+semver :: Text -> Either ParsingError SemVer
 semver = parse (semver'' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of `semver`.
-semver' :: Parsec Void T.Text SemVer
+semver' :: Parsec Void Text SemVer
 semver' = L.lexeme space semver''
 
-semver'' :: Parsec Void T.Text SemVer
+semver'' :: Parsec Void Text SemVer
 semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
-digitsP :: Parsec Void T.Text Word
+digitsP :: Parsec Void Text Word
 digitsP = read <$> ((T.unpack <$> string "0") <|> some digitChar)
 
-majorP :: Parsec Void T.Text Word
+majorP :: Parsec Void Text Word
 majorP = digitsP <* char '.'
 
-minorP :: Parsec Void T.Text Word
+minorP :: Parsec Void Text Word
 minorP = majorP
 
-patchP :: Parsec Void T.Text Word
+patchP :: Parsec Void Text Word
 patchP = digitsP
 
-preRel :: Parsec Void T.Text [VChunk]
+preRel :: Parsec Void Text [VChunk]
 preRel = (char '-' *> chunks) <|> pure []
 
-metaData :: Parsec Void T.Text [VChunk]
+metaData :: Parsec Void Text [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
 
-chunksNE :: Parsec Void T.Text (NonEmpty VChunk)
+chunksNE :: Parsec Void Text (NonEmpty VChunk)
 chunksNE = chunk `PC.sepBy1` char '.'
 
-chunks :: Parsec Void T.Text [VChunk]
+chunks :: Parsec Void Text [VChunk]
 chunks = chunk `sepBy` char '.'
 
 -- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
 -- since a version like @1.000.1@ would parse as @1.0.1@.
-chunk :: Parsec Void T.Text VChunk
+chunk :: Parsec Void Text VChunk
 chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
   where oneZero = (:|[]) . Digits . read . T.unpack <$> string "0"
         zeroWithLetters = do
@@ -765,49 +786,57 @@ chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
             Nothing -> pure $ NEL.cons z s
             Just c' -> pure $ NEL.cons z s <> c'
 
-iunit :: Parsec Void T.Text VUnit
+iunit :: Parsec Void Text VUnit
 iunit = Digits . read <$> some digitChar
 
-sunit :: Parsec Void T.Text VUnit
+sunit :: Parsec Void Text VUnit
 sunit = Str . T.pack <$> some letterChar
 
 -- | Parse a (Haskell) `PVP`, as defined above.
-pvp :: T.Text -> Either ParsingError PVP
+pvp :: Text -> Either ParsingError PVP
 pvp = parse (pvp' <* eof) "PVP"
 
 -- | Internal megaparsec parser of `pvp`.
-pvp' :: Parsec Void T.Text PVP
+pvp' :: Parsec Void Text PVP
 pvp' = L.lexeme space (PVP . NEL.fromList <$> L.decimal `sepBy` char '.')
 
 -- | Parse a (General) `Version`, as defined above.
-version :: T.Text -> Either ParsingError Version
+version :: Text -> Either ParsingError Version
 version = parse (version'' <* eof) "Version"
 
 -- | Internal megaparsec parser of `version`.
-version' :: Parsec Void T.Text Version
+version' :: Parsec Void Text Version
 version' = L.lexeme space version''
 
-version'' :: Parsec Void T.Text Version
+version'' :: Parsec Void Text Version
 version'' = Version <$> optional (try epochP) <*> chunksNE <*> preRel
 
-epochP :: Parsec Void T.Text Word
+epochP :: Parsec Void Text Word
 epochP = read <$> (some digitChar <* char ':')
 
 -- | Parse a (Complex) `Mess`, as defined above.
-mess :: T.Text -> Either ParsingError Mess
+mess :: Text -> Either ParsingError Mess
 mess = parse (mess'' <* eof) "Mess"
 
 -- | Internal megaparsec parser of `mess`.
-mess' :: Parsec Void T.Text Mess
+mess' :: Parsec Void Text Mess
 mess' = L.lexeme space mess''
 
-mess'' :: Parsec Void T.Text Mess
-mess'' = Mess <$> tchunks <*> optional ((,) <$> sep <*> mess')
+mess'' :: Parsec Void Text Mess
+mess'' = Mess <$> mchunks <*> optional ((,) <$> sep <*> mess')
 
-tchunks :: Parsec Void T.Text (NonEmpty T.Text)
-tchunks = (T.pack <$> some (letterChar <|> digitChar)) `PC.sepBy1` char '.'
+mchunks :: Parsec Void Text (NonEmpty MChunk)
+mchunks = mchunk `PC.sepBy1` char '.'
 
-sep :: Parsec Void T.Text VSep
+mchunk :: Parsec Void Text MChunk
+mchunk = choice [ try $ (\(t, i) -> MDigit i t) <$> match (L.decimal <* next)
+                , try $ (\(t, i) -> MRev i t) <$> (match (single 'r' *> L.decimal <* next))
+                , MPlain . T.pack <$> some (letterChar <|> digitChar) ]
+  where
+    next :: Parsec Void Text ()
+    next = lookAhead (void (single '.') <|> void sep <|> eof)
+
+sep :: Parsec Void Text VSep
 sep = choice [ VColon  <$ char ':'
              , VHyphen <$ char '-'
              , VPlus   <$ char '+'
@@ -820,42 +849,52 @@ sepCh VPlus   = '+'
 sepCh VUnder  = '_'
 
 -- | Convert any parsed Versioning type to its textual representation.
-prettyV :: Versioning -> T.Text
+prettyV :: Versioning -> Text
 prettyV (Ideal sv)  = prettySemVer sv
 prettyV (General v) = prettyVer v
 prettyV (Complex m) = prettyMess m
 
 -- | Convert a `SemVer` back to its textual representation.
-prettySemVer :: SemVer -> T.Text
+prettySemVer :: SemVer -> Text
 prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where ver = intersperse "." [ showt ma, showt mi, showt pa ]
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
 
 -- | Convert a `PVP` back to its textual representation.
-prettyPVP :: PVP -> T.Text
+prettyPVP :: PVP -> Text
 prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
-prettyVer :: Version -> T.Text
+prettyVer :: Version -> Text
 prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
   where ver = intersperse "." . chunksAsT $ NEL.toList cs
         pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
         ep' = maybe "" (\e -> showt e <> ":") ep
 
 -- | Convert a `Mess` back to its textual representation.
-prettyMess :: Mess -> T.Text
+prettyMess :: Mess -> Text
 prettyMess (Mess t m) = case m of
   Nothing     -> t'
   Just (s, v) -> T.snoc t' (sepCh s) <> prettyMess v
   where
-    t' :: T.Text
-    t' = fold $ NEL.intersperse "." t
+    t' :: Text
+    t' = fold . NEL.intersperse "." $ NEL.map mchunkText t
 
-chunksAsT :: Functor t => t VChunk -> t T.Text
+chunksAsT :: Functor t => t VChunk -> t Text
 chunksAsT = fmap (foldMap f)
-  where f (Digits i) = showt i
-        f (Str s)    = s
+  where
+    f :: VUnit -> Text
+    f (Digits i) = showt i
+    f (Str s)    = s
+
+chunksAsM :: Functor t => t VChunk -> t MChunk
+chunksAsM = fmap f
+  where
+    f :: VChunk -> MChunk
+    f (Digits i :| [])        = MDigit i $ showt i
+    f (Str "r" :| [Digits i]) = MRev i . T.cons 'r' $ showt i
+    f vc                      = MPlain . T.concat $ chunksAsT [vc]
 
 -- | Analogous to `maybe` and `either`. If a given Foldable is empty,
 -- a default value is returned. Else, a function is applied to that Foldable.
@@ -870,7 +909,7 @@ opposite LT = GT
 opposite GT = LT
 
 -- Yes, `text-show` exists, but this reduces external dependencies.
-showt :: Show a => a -> T.Text
+showt :: Show a => a -> Text
 showt = T.pack . show
 
 hush :: Either a b -> Maybe b
