@@ -73,6 +73,7 @@ import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
+import           Data.Foldable (fold)
 import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import           Data.List.NonEmpty (NonEmpty(..))
@@ -138,10 +139,12 @@ vFromS (SemVer m i p r _) = Version Nothing ((Digits m :| []) :| [(Digits i :| [
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
-mFromV (Version e v r) = maybe affix (\a -> VNode [showt a] VColon affix) e
+mFromV (Version e v r) = maybe affix (\a -> Mess (showt a :| []) $ Just (VColon, affix)) e
   where
     affix :: Mess
-    affix = VNode (chunksAsT $ NEL.toList v) VHyphen $ VLeaf (chunksAsT r)
+    affix = Mess (chunksAsT v) $ case NEL.nonEmpty r of
+      Nothing -> Nothing
+      Just r' -> Just (VHyphen, Mess (chunksAsT r') Nothing)
 
 -- | Special logic for when semver-like values can be extracted from a `Mess`.
 -- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
@@ -612,27 +615,26 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 -- Not guaranteed to have well-defined ordering (@Ord@) behaviour, but so far
 -- internal tests show consistency. `messMajor`, etc., are used internally where
 -- appropriate to enhance accuracy.
-data Mess = VLeaf [T.Text] | VNode [T.Text] VSep Mess
+data Mess = Mess (NonEmpty T.Text) (Maybe (VSep, Mess))
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
 -- | Try to extract the "major" version number from `Mess`, as if it were a
 -- `SemVer`.
 messMajor :: Mess -> Maybe Word
-messMajor (VNode (m:_) _ _) = hush $ parse (digitsP <* eof) "Major" m
-messMajor _                 = Nothing
+messMajor (Mess (m:|_) _) = hush $ parse (digitsP <* eof) "Major" m
 
 -- | Try to extract the "minor" version number from `Mess`, as if it were a
 -- `SemVer`.
 messMinor :: Mess -> Maybe Word
-messMinor (VNode (_:m:_) _ _) = hush $ parse (digitsP <* eof) "Minor" m
-messMinor _                   = Nothing
+messMinor (Mess (_:|m:_) _) = hush $ parse (digitsP <* eof) "Minor" m
+messMinor _                 = Nothing
 
 -- | Try to extract the "patch" version number from `Mess`, as if it were a
 -- `SemVer`.
 messPatch :: Mess -> Maybe Word
-messPatch (VNode (_:_:p:_) _ _) = hush $ parse (digitsP <* eof) "Patch" p
-messPatch _                     = Nothing
+messPatch (Mess (_:|_:p:_) _) = hush $ parse (digitsP <* eof) "Patch" p
+messPatch _                   = Nothing
 
 -- | Okay, fine, say `messPatch` couldn't find a nice value. But some `Mess`es
 -- have a "proper" patch-plus-release-candidate value in their patch position,
@@ -640,30 +642,31 @@ messPatch _                     = Nothing
 --
 -- Example: @1.6.0a+2014+m872b87e73dfb-1@ We should be able to extract @0a@ safely.
 messPatchChunk :: Mess -> Maybe VChunk
-messPatchChunk (VNode (_:_:p:_) _ _) = hush $ parse chunk "Chunk" p
-messPatchChunk _                     = Nothing
+messPatchChunk (Mess (_:|_:p:_) _) = hush $ parse chunk "Chunk" p
+messPatchChunk _                   = Nothing
 
 instance Ord Mess where
-  compare (VLeaf l1) (VLeaf l2)     = compare l1 l2
-  compare (VNode t1 _ _) (VLeaf t2) = compare t1 t2
-  compare (VLeaf t1) (VNode t2 _ _) = compare t1 t2
-  compare (VNode t1 _ v1) (VNode t2 _ v2) | t1 < t2 = LT
-                                          | t1 > t2 = GT
-                                          | otherwise = compare v1 v2
+  compare (Mess t1 Nothing) (Mess t2 Nothing) = compare t1 t2
+  compare (Mess t1 m1) (Mess t2 m2) = case compare t1 t2 of
+    EQ  -> case (m1, m2) of
+      (Just (_, v1), Just (_, v2)) -> compare v1 v2
+      (Just (_, _), Nothing)       -> GT
+      (Nothing, Just (_, _))       -> LT
+      (Nothing, Nothing)           -> EQ
+    res -> res
 
 instance Semantic Mess where
-  major f v@(VNode (t : ts) s ms) = either (const $ pure v) g $ parse digitsP "Major" t
-    where g n = (\n' -> VNode (showt n' : ts) s ms) <$> f n
-  major _ v = pure v
+  major f v@(Mess (t :| ts) m) = either (const $ pure v) g $ parse digitsP "Major" t
+    where g n = (\n' -> Mess (showt n' :| ts) m) <$> f n
   {-# INLINE major #-}
 
-  minor f v@(VNode (t0 : t : ts) s ms) = either (const $ pure v) g $ parse digitsP "Minor" t
-    where g n = (\n' -> VNode (t0 : showt n' : ts) s ms) <$> f n
+  minor f v@(Mess (t0 :| t : ts) m) = either (const $ pure v) g $ parse digitsP "Minor" t
+    where g n = (\n' -> Mess (t0 :| showt n' : ts) m) <$> f n
   minor _ v = pure v
   {-# INLINE minor #-}
 
-  patch f v@(VNode (t0 : t1 : t : ts) s ms) = either (const $ pure v) g $ parse digitsP "Patch" t
-    where g n = (\n' -> VNode (t0 : t1 : showt n' : ts) s ms) <$> f n
+  patch f v@(Mess (t0 :| t1 : t : ts) m) = either (const $ pure v) g $ parse digitsP "Patch" t
+    where g n = (\n' -> Mess (t0 :| t1 : showt n' : ts) m) <$> f n
   patch _ v = pure v
   {-# INLINE patch #-}
 
@@ -676,7 +679,7 @@ instance Semantic Mess where
   {-# INLINE meta #-}
 
   -- | Good luck.
-  semantic f v@(VNode (t0 : t1 : t2 : _) _ _) = either (const $ pure v) (fmap (mFromV . vFromS)) $
+  semantic f v@(Mess (t0 :| t1 : t2 : _) _) = either (const $ pure v) (fmap (mFromV . vFromS)) $
     (\a b c -> f $ SemVer a b c [] [])
     <$> parse digitsP "Major" t0
     <*> parse digitsP "Minor" t1
@@ -790,16 +793,13 @@ mess = parse (mess' <* eof) "Mess"
 
 -- | Internal megaparsec parser of `mess`.
 mess' :: Parsec Void T.Text Mess
-mess' = L.lexeme space (try node <|> leaf)
-
-leaf :: Parsec Void T.Text Mess
-leaf = VLeaf <$> tchunks
+mess' = L.lexeme space node
 
 node :: Parsec Void T.Text Mess
-node = VNode <$> tchunks <*> sep <*> mess'
+node = Mess <$> tchunks <*> optional ((,) <$> sep <*> mess')
 
-tchunks :: Parsec Void T.Text [T.Text]
-tchunks = (T.pack <$> some (letterChar <|> digitChar)) `sepBy` char '.'
+tchunks :: Parsec Void T.Text (NonEmpty T.Text)
+tchunks = (T.pack <$> some (letterChar <|> digitChar)) `PC.sepBy1` char '.'
 
 sep :: Parsec Void T.Text VSep
 sep = choice [ VColon  <$ char ':'
@@ -839,12 +839,16 @@ prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
 
 -- | Convert a `Mess` back to its textual representation.
 prettyMess :: Mess -> T.Text
-prettyMess (VLeaf t)     = mconcat $ intersperse "." t
-prettyMess (VNode t s v) = T.snoc t' (sepCh s) <> prettyMess v
-  where t' = mconcat $ intersperse "." t
+-- prettyMess (VLeaf t)     = mconcat $ intersperse "." t
+prettyMess (Mess t m) = case m of
+  Nothing     -> t'
+  Just (s, v) -> T.snoc t' (sepCh s) <> prettyMess v
+  where
+    t' :: T.Text
+    t' = fold $ NEL.intersperse "." t
 
-chunksAsT :: [VChunk] -> [T.Text]
-chunksAsT = map (foldMap f)
+chunksAsT :: Functor t => t VChunk -> t T.Text
+chunksAsT = fmap (foldMap f)
   where f (Digits i) = showt i
         f (Str s)    = s
 
