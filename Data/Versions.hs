@@ -69,7 +69,7 @@ module Data.Versions
   , _Digits, _Str
   ) where
 
-import           Control.Applicative.Combinators.NonEmpty (sepBy1)
+import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
@@ -80,7 +80,7 @@ import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
-import           Text.Megaparsec hiding (chunk, sepBy1)
+import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -134,7 +134,7 @@ instance Ord Versioning where
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
-vFromS (SemVer m i p r _) = Version Nothing ([Digits m] :| [[Digits i], [Digits p]]) r
+vFromS (SemVer m i p r _) = Version Nothing ((Digits m :| []) :| [(Digits i :| []), Digits p :| []]) r
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
@@ -164,7 +164,7 @@ semverAndMess s@(SemVer ma mi pa _ _) m = case compare ma <$> messMajor m of
       Just EQ -> fallback
       Nothing -> case messPatchChunk m of
         Nothing             -> fallback
-        Just (Digits pa':_) -> case compare pa pa' of
+        Just (Digits pa':|_) -> case compare pa pa' of
           LT -> LT
           GT -> GT
           EQ -> GT  -- This follows semver's rule!
@@ -413,7 +413,7 @@ _Str _ v       = pure v
 
 -- | A logical unit of a version number. Can consist of multiple letters
 -- and numbers.
-type VChunk = [VUnit]
+type VChunk = NonEmpty VUnit
 
 --------------------------------------------------------------------------------
 -- (Haskell) PVP
@@ -537,7 +537,7 @@ instance Ord Version where
       g [] _  = LT
 
       -- | The usual case.
-      g (x:xs) (y:ys) = case f x y of
+      g (x:xs) (y:ys) = case f (NEL.toList x) (NEL.toList y) of
         EQ  -> g xs ys
         res -> res
 
@@ -565,15 +565,15 @@ instance Ord Version where
       f (Str _ :_ ) (Digits _ :_) = LT
 
 instance Semantic Version where
-  major f (Version e ([Digits n] :| cs) rs) = (\n' -> Version e ([Digits n'] :| cs) rs) <$> f n
+  major f (Version e ((Digits n :| []) :| cs) rs) = (\n' -> Version e ((Digits n' :| []) :| cs) rs) <$> f n
   major _ v = pure v
   {-# INLINE major #-}
 
-  minor f (Version e (c :| [Digits n] : cs) rs) = (\n' -> Version e (c :| [Digits n'] : cs) rs) <$> f n
+  minor f (Version e (c :| (Digits n :| []) : cs) rs) = (\n' -> Version e (c :| (Digits n' :| []) : cs) rs) <$> f n
   minor _ v = pure v
   {-# INLINE minor #-}
 
-  patch f (Version e (c :| d : [Digits n] : cs) rs) = (\n' -> Version e (c :| d : [Digits n'] : cs) rs) <$> f n
+  patch f (Version e (c :| d : (Digits n :| []) : cs) rs) = (\n' -> Version e (c :| d : (Digits n' :| []) : cs) rs) <$> f n
   patch _ v = pure v
   {-# INLINE patch #-}
 
@@ -585,7 +585,7 @@ instance Semantic Version where
   meta _ v = pure v
   {-# INLINE meta #-}
 
-  semantic f (Version _ ([Digits a] :| [Digits b] : [Digits c] : _) rs) = vFromS <$> f (SemVer a b c rs [])
+  semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) rs) = vFromS <$> f (SemVer a b c rs [])
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -741,7 +741,7 @@ metaData :: Parsec Void T.Text [VChunk]
 metaData = (char '+' *> chunks) <|> pure []
 
 chunksNE :: Parsec Void T.Text (NonEmpty VChunk)
-chunksNE = chunk `sepBy1` char '.'
+chunksNE = chunk `PC.sepBy1` char '.'
 
 chunks :: Parsec Void T.Text [VChunk]
 chunks = chunk `sepBy` char '.'
@@ -749,13 +749,15 @@ chunks = chunk `sepBy` char '.'
 -- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
 -- since a version like @1.000.1@ would parse as @1.0.1@.
 chunk :: Parsec Void T.Text VChunk
-chunk = try zeroWithLetters <|> oneZero <|> many (iunit <|> sunit)
-  where oneZero = (:[]) . Digits . read . T.unpack <$> string "0"
+chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
+  where oneZero = (:|[]) . Digits . read . T.unpack <$> string "0"
         zeroWithLetters = do
           z <- Digits . read . T.unpack <$> string "0"
-          s <- some sunit
-          c <- chunk
-          pure $ (z : s) ++ c
+          s <- PC.some sunit
+          c <- optional chunk
+          case c of
+            Nothing -> pure $ NEL.cons z s
+            Just c' -> pure $ NEL.cons z s <> c'
 
 iunit :: Parsec Void T.Text VUnit
 iunit = Digits . read <$> some digitChar
@@ -842,7 +844,7 @@ prettyMess (VNode t s v) = T.snoc t' (sepCh s) <> prettyMess v
   where t' = mconcat $ intersperse "." t
 
 chunksAsT :: [VChunk] -> [T.Text]
-chunksAsT = map (mconcat . map f)
+chunksAsT = map (foldMap f)
   where f (Digits i) = showt i
         f (Str s)    = s
 

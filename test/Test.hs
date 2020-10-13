@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -26,14 +27,14 @@ instance Arbitrary SemVer where
   arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> chunks <*> chunks
 
 -- | Sane generation of VChunks.
-chunks :: Gen [[VUnit]]
+chunks :: Gen [VChunk]
 chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
 
 chunksNE :: Gen (NEL.NonEmpty VChunk)
-chunksNE = undefined
+chunksNE = NEL.fromList <$> chunks
 
-simplify :: [VUnit] -> [VUnit]
-simplify = map fold . groupBy f
+simplify :: [VUnit] -> NEL.NonEmpty VUnit
+simplify = NEL.fromList . map fold . groupBy f
   where f (Digits _) (Digits _) = True
         f (Str _) (Str _)       = True
         f _ _                   = False
@@ -144,6 +145,8 @@ suite = testGroup "Tests"
     , testGroup "(Complex) Mess"
       [ testGroup "Good Versions" $
         map (\s -> testCase (T.unpack s) $ isomorphM s) messes
+      , testGroup "Bad Versions (shouldn't parse)" $
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ mess s) badVers
       , testGroup "Comparisons" $
         map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) $
         zip messComps (tail messComps)
