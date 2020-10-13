@@ -793,10 +793,7 @@ mess = parse (mess' <* eof) "Mess"
 
 -- | Internal megaparsec parser of `mess`.
 mess' :: Parsec Void T.Text Mess
-mess' = L.lexeme space node
-
-node :: Parsec Void T.Text Mess
-node = Mess <$> tchunks <*> optional ((,) <$> sep <*> mess')
+mess' = Mess <$> tchunks <*> optional ((,) <$> sep <*> mess')
 
 tchunks :: Parsec Void T.Text (NonEmpty T.Text)
 tchunks = (T.pack <$> some (letterChar <|> digitChar)) `PC.sepBy1` char '.'
