@@ -48,6 +48,7 @@ library
   build-depends:
     , deepseq   >=1.4
     , hashable  >=1.2
+    , parser-combinators >= 1.0
 
 test-suite versions-test
   import:         commons

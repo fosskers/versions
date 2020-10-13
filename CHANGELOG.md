@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+#### Changed
+
+- **Breaking:** `VChunk` now cannot be empty.
+- **Breaking:** A `Version` now guarantees `NonEmpty` chunks.
+- **Breaking:** A `Mess` now guarantees `NonEmpty` chunks, and is no longer a sum type.
+- Comparison of `Version` values is more memory efficient.
+
+#### Removed
+
+- **Breaking:** `Version` no longer has a `Monoid` instance.
+
+#### Fixed
+
+- `""` no longer parses in any way. [#32]
+- Version strings with trailing whitespace no longer parse via `versioning`. [#33]
+
+[#32]: https://github.com/fosskers/versions/issues/32
+[#33]: https://github.com/fosskers/versions/issues/33
+
 ## 3.5.4 (2020-05-12)
 
 #### Added

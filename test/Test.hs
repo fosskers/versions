@@ -1,13 +1,15 @@
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Main where
+module Main ( main ) where
 
 import           Data.Char (chr)
 import           Data.Either (isLeft)
 import           Data.Foldable (fold)
 import           Data.List (groupBy)
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import           Data.Versions
 import           Data.Void (Void)
@@ -25,11 +27,14 @@ instance Arbitrary SemVer where
   arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> chunks <*> chunks
 
 -- | Sane generation of VChunks.
-chunks :: Gen [[VUnit]]
+chunks :: Gen [VChunk]
 chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
 
-simplify :: [VUnit] -> [VUnit]
-simplify = map fold . groupBy f
+chunksNE :: Gen (NEL.NonEmpty VChunk)
+chunksNE = NEL.fromList <$> chunks
+
+simplify :: [VUnit] -> NEL.NonEmpty VUnit
+simplify = NEL.fromList . map fold . groupBy f
   where f (Digits _) (Digits _) = True
         f (Str _) (Str _)       = True
         f _ _                   = False
@@ -45,13 +50,16 @@ instance Arbitrary Letter where
   arbitrary = Letter . chr <$> choose (97, 122)
 
 instance Arbitrary Version where
-  arbitrary = Version <$> arbitrary <*> chunks <*> chunks
+  arbitrary = Version <$> arbitrary <*> chunksNE <*> chunks
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
 goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1", "1:0.10.16-3"
            ]
+
+badVers :: [T.Text]
+badVers = ["", "1.2 "]
 
 messes :: [T.Text]
 messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2" ]
@@ -63,7 +71,7 @@ messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
 
 badSemVs :: [T.Text]
 badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
-           , "1.2.3+a1b!2c3.1"
+           , "1.2.3+a1b!2c3.1", "", "1.2.3 "
            ]
 
 goodSemVs :: [T.Text]
@@ -123,6 +131,8 @@ suite = testGroup "Tests"
     , testGroup "(General) Versions"
       [ testGroup "Good Versions" $
         map (\s -> testCase (T.unpack s) $ isomorphV s) goodVers
+      , testGroup "Bad Versions (shouldn't parse)" $
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ version s) badVers
       , testGroup "Comparisons" $
         testCase "1.2-5 < 1.2.3-1" (comp version "1.2-5" "1.2.3-1") :
         testCase "1.0rc1 < 1.0" (comp version "1.0rc1" "1.0") :
@@ -135,6 +145,8 @@ suite = testGroup "Tests"
     , testGroup "(Complex) Mess"
       [ testGroup "Good Versions" $
         map (\s -> testCase (T.unpack s) $ isomorphM s) messes
+      , testGroup "Bad Versions (shouldn't parse)" $
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ mess s) badVers
       , testGroup "Comparisons" $
         map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) $
         zip messComps (tail messComps)
@@ -163,6 +175,8 @@ suite = testGroup "Tests"
         , testCase "000.007-1 is Mess" $ check $ isMess <$> versioning "000.007-1"
         , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> versioning "20.26.1_0-2"
         ]
+      , testGroup "Bad Versions" $
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ versioning s) badVers
       , testGroup "Isomorphisms" $
         map (\s -> testCase (T.unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
       , testGroup "Comparisons"
@@ -173,13 +187,14 @@ suite = testGroup "Tests"
         , testCase "1.2-5 < 1.2.3-1"       $ comp versioning "1.2-5" "1.2.3-1"
         , testCase "1.6.0a+2014+m872b87e73dfb-1 < 1.6.0-1"
           $ comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
+        -- , testCase "1.11.0.git.20200404-1 < 1.11.0+20200830-1"
+        --   $ comp versioning "1.11.0.git.20200404-1" "1.11.0+20200830-1"
         ]
       ]
     , testGroup "Lenses and Traversals"
       [ testCase "SemVer - Increment Patch" incPatch
       , testCase "SemVer - Increment Patch from Text" incFromT
       , testCase "SemVer - Get patches" patches
-      , testCase "Traverse `General` as `Ideal`" noInc
       ]
     , testGroup "Megaparsec Behaviour"
       [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"
@@ -228,11 +243,6 @@ incPatch :: Assertion
 incPatch = (v1 & patch %~ (+ 1)) @?= v2
   where v1 = Ideal $ SemVer 1 2 3 [] []
         v2 = Ideal $ SemVer 1 2 4 [] []
-
--- | Nothing should happen.
-noInc :: Assertion
-noInc = (v & patch %~ (+ 1)) @?= v
-  where v = General $ Version Nothing [] []
 
 incFromT :: Assertion
 incFromT = (("1.2.3" :: T.Text) & patch %~ (+ 1)) @?= "1.2.4"
