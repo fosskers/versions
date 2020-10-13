@@ -175,6 +175,8 @@ suite = testGroup "Tests"
         , testCase "000.007-1 is Mess" $ check $ isMess <$> versioning "000.007-1"
         , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> versioning "20.26.1_0-2"
         ]
+      , testGroup "Bad Versions" $
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ versioning s) badVers
       , testGroup "Isomorphisms" $
         map (\s -> testCase (T.unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
       , testGroup "Comparisons"
