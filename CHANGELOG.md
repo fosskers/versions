@@ -6,8 +6,15 @@
 
 - **Breaking:** `VChunk` now cannot be empty.
 - **Breaking:** A `Version` now guarantees `NonEmpty` chunks.
-- **Breaking:** A `Mess` now guarantees `NonEmpty` chunks, and is no longer a sum type.
+- **Breaking:** A `Mess` now guarantees `NonEmpty` chunks, and its structure has
+  been significantly changed. Particularly, `Mess` values are now aware of the
+  `Int` values they hold (when they do), as well as "revision" values of the
+  pattern `rXYZ`.
 - Comparison of `Version` values is more memory efficient.
+
+#### Added
+
+- The `MChunk` type to accomodate the changes to `Mess` mentioned above.
 
 #### Removed
 
@@ -17,9 +24,11 @@
 
 - `""` no longer parses in any way. [#32]
 - Version strings with trailing whitespace no longer parse via `versioning`. [#33]
+- Particular edge cases involving `Mess` comparisons. [aura#646]
 
 [#32]: https://github.com/fosskers/versions/issues/32
 [#33]: https://github.com/fosskers/versions/issues/33
+[aura#646]: https://github.com/fosskers/aura/issues/646
 
 ## 3.5.4 (2020-05-12)
 
