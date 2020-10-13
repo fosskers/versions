@@ -712,17 +712,20 @@ versioning = parse versioning' "versioning"
 -- | Parse a `Versioning`. Assumes the version number is the last token in
 -- the string.
 versioning' :: Parsec Void T.Text Versioning
-versioning' = choice [ try (fmap Ideal semver'    <* eof)
-                     , try (fmap General version' <* eof)
-                     , fmap Complex mess'         <* eof ]
+versioning' = choice [ try (fmap Ideal semver''    <* eof)
+                     , try (fmap General version'' <* eof)
+                     , fmap Complex mess''         <* eof ]
 
 -- | Parse a (Ideal) Semantic Version.
 semver :: T.Text -> Either ParsingError SemVer
-semver = parse (semver' <* eof) "Semantic Version"
+semver = parse (semver'' <* eof) "Semantic Version"
 
 -- | Internal megaparsec parser of `semver`.
 semver' :: Parsec Void T.Text SemVer
-semver' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
+semver' = L.lexeme space semver''
+
+semver'' :: Parsec Void T.Text SemVer
+semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digitsP :: Parsec Void T.Text Word
@@ -778,22 +781,28 @@ pvp' = L.lexeme space (PVP . NEL.fromList <$> L.decimal `sepBy` char '.')
 
 -- | Parse a (General) `Version`, as defined above.
 version :: T.Text -> Either ParsingError Version
-version = parse (version' <* eof) "Version"
+version = parse (version'' <* eof) "Version"
 
 -- | Internal megaparsec parser of `version`.
 version' :: Parsec Void T.Text Version
-version' = Version <$> optional (try epochP) <*> chunksNE <*> preRel
+version' = L.lexeme space version''
+
+version'' :: Parsec Void T.Text Version
+version'' = Version <$> optional (try epochP) <*> chunksNE <*> preRel
 
 epochP :: Parsec Void T.Text Word
 epochP = read <$> (some digitChar <* char ':')
 
 -- | Parse a (Complex) `Mess`, as defined above.
 mess :: T.Text -> Either ParsingError Mess
-mess = parse (mess' <* eof) "Mess"
+mess = parse (mess'' <* eof) "Mess"
 
 -- | Internal megaparsec parser of `mess`.
 mess' :: Parsec Void T.Text Mess
-mess' = Mess <$> tchunks <*> optional ((,) <$> sep <*> mess')
+mess' = L.lexeme space mess''
+
+mess'' :: Parsec Void T.Text Mess
+mess'' = Mess <$> tchunks <*> optional ((,) <$> sep <*> mess')
 
 tchunks :: Parsec Void T.Text (NonEmpty T.Text)
 tchunks = (T.pack <$> some (letterChar <|> digitChar)) `PC.sepBy1` char '.'
@@ -836,7 +845,6 @@ prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
 
 -- | Convert a `Mess` back to its textual representation.
 prettyMess :: Mess -> T.Text
--- prettyMess (VLeaf t)     = mconcat $ intersperse "." t
 prettyMess (Mess t m) = case m of
   Nothing     -> t'
   Just (s, v) -> T.snoc t' (sepCh s) <> prettyMess v
