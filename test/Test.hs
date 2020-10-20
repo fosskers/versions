@@ -50,13 +50,13 @@ instance Arbitrary Letter where
   arbitrary = Letter . chr <$> choose (97, 122)
 
 instance Arbitrary Version where
-  arbitrary = Version <$> arbitrary <*> chunksNE <*> chunks
+  arbitrary = Version <$> arbitrary <*> chunksNE <*> chunks <*> chunks
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
 goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1", "1:0.10.16-3"
-           ]
+           , "1.11.0.git.20200404-1", "1.11.0+20200830-1" ]
 
 badVers :: [T.Text]
 badVers = ["", "1.2 "]
@@ -171,7 +171,7 @@ suite = testGroup "Tests"
         , testCase "1.2.3r1 is Version" $ check $ isVersion <$> versioning "1.2.3r1"
         , testCase "0.25-2 is Version" $ check $ isVersion <$> versioning "0.25-2"
         , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> versioning "1:1.2.3-1"
-        , testCase "1.2.3+1-1 is Mess" $ check $ isMess <$> versioning "1.2.3+1-1"
+        , testCase "1.2.3+1-1 is Version" $ check $ isVersion <$> versioning "1.2.3+1-1"
         , testCase "000.007-1 is Mess" $ check $ isMess <$> versioning "000.007-1"
         , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> versioning "20.26.1_0-2"
         ]
@@ -187,8 +187,8 @@ suite = testGroup "Tests"
         , testCase "1.2-5 < 1.2.3-1"       $ comp versioning "1.2-5" "1.2.3-1"
         , testCase "1.6.0a+2014+m872b87e73dfb-1 < 1.6.0-1"
           $ comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
-        -- , testCase "1.11.0.git.20200404-1 < 1.11.0+20200830-1"
-        --   $ comp versioning "1.11.0.git.20200404-1" "1.11.0+20200830-1"
+        , testCase "1.11.0.git.20200404-1 < 1.11.0+20200830-1"
+          $ comp versioning "1.11.0.git.20200404-1" "1.11.0+20200830-1"
         , testCase "0.17.0+r8+gc41db5f1-1 < 0.17.0+r157+g584760cf-1"
           $ comp versioning "0.17.0+r8+gc41db5f1-1" "0.17.0+r157+g584760cf-1"
         ]

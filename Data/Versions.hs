@@ -138,16 +138,26 @@ instance Ord Versioning where
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
-vFromS (SemVer m i p r _) = Version Nothing ((Digits m :| []) :| [(Digits i :| []), Digits p :| []]) r
+vFromS (SemVer ma mi pa re me) =
+  Version Nothing ((Digits ma :| []) :| [(Digits mi :| []), Digits pa :| []]) re me
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
-mFromV (Version e v r) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ Just (VColon, affix)) e
+mFromV (Version e v m r) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ Just (VColon, affix)) e
   where
     affix :: Mess
-    affix = Mess (chunksAsM v) $ case NEL.nonEmpty r of
-      Nothing -> Nothing
-      Just r' -> Just (VHyphen, Mess (chunksAsM r') Nothing)
+    affix = Mess (chunksAsM v) m'
+
+    m' :: Maybe (VSep, Mess)
+    m' = case NEL.nonEmpty m of
+      Nothing  -> r'
+      Just m'' -> Just (VPlus, Mess (chunksAsM m'') r')
+
+    r' :: Maybe (VSep, Mess)
+    r' = case NEL.nonEmpty r of
+      Nothing  -> Nothing
+      Just r'' -> Just (VHyphen, Mess (chunksAsM r'') Nothing)
+
 
 -- | Special logic for when semver-like values can be extracted from a `Mess`.
 -- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
@@ -492,19 +502,24 @@ instance Semantic PVP where
 -- | A (General) Version.
 -- Not quite as ideal as a `SemVer`, but has some internal consistancy
 -- from version to version.
--- Generally conforms to the @x.x.x-x@ pattern, and may optionally have an /epoch/.
--- These are prefixes marked by a colon, like in @1:2.3.4@.
 --
--- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1, 1:2.3.4
+-- Generally conforms to the @a.b.c-p@ pattern, and may optionally have an
+-- /epoch/ and /metadata/. Epochs are prefixes marked by a colon, like in
+-- @1:2.3.4@. Metadata is prefixed by @+@, and unlike SemVer can appear before
+-- the "prerelease" (the @-p@).
+--
+-- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1,
+-- 1:2.3.4, 1.11.0+20200830-1
 data Version = Version
   { _vEpoch  :: !(Maybe Word)
   , _vChunks :: !(NonEmpty VChunk)
+  , _vMeta   :: ![VChunk]
   , _vRel    :: ![VChunk] }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
 instance Semigroup Version where
-  Version e c r <> Version e' c' r' = Version ((+) <$> e <*> e') (c <> c') (r ++ r')
+  Version e c m r <> Version e' c' m' r' = Version ((+) <$> e <*> e') (c <> c') (m <> m') (r <> r')
 
 -- | Set a `Version`'s epoch to `Nothing`.
 wipe :: Version -> Version
@@ -514,28 +529,35 @@ wipe v = v { _vEpoch = Nothing }
 instance Ord Version where
   -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
   -- so we need to compare their actual version numbers.
-  compare v0@(Version (Just 0) _ _) v1@(Version Nothing _ _) = compare (wipe v0) v1
-  compare v0@(Version Nothing _ _) v1@(Version (Just 0) _ _) = compare v0 (wipe v1)
+  compare v0@(Version (Just 0) _ _ _) v1@(Version Nothing _ _ _) = compare (wipe v0) v1
+  compare v0@(Version Nothing _ _ _) v1@(Version (Just 0) _ _ _) = compare v0 (wipe v1)
 
   -- | If a version has an epoch > 1 and the other has no epoch, the first will
   -- be considered greater.
-  compare (Version (Just _) _ _) (Version Nothing _ _) = GT
-  compare (Version Nothing _ _) (Version (Just _) _ _) = LT
+  compare (Version (Just _) _ _ _) (Version Nothing _ _ _) = GT
+  compare (Version Nothing _ _ _) (Version (Just _) _ _ _) = LT
 
   -- | If two epochs are equal, we need to compare their actual version numbers.
   -- Otherwise, the comparison of the epochs is the only thing that matters.
-  compare v0@(Version (Just n) _ _) v1@(Version (Just m) _ _) | n == m = compare (wipe v0) (wipe v1)
-                                                              | otherwise = compare n m
+  compare v0@(Version (Just n) _ _ _) v1@(Version (Just m) _ _ _) | n == m = compare (wipe v0) (wipe v1)
+                                                                  | otherwise = compare n m
 
   -- | The usual case. If first VChunks of each Version is equal, then we keep
   -- recursing. Otherwise, we don't need to check further. Consider @1.2@
   -- compared to @1.1.3.4.5.6@.
-  compare (Version _ as rs) (Version _ bs rs') = g (NEL.toList as) (NEL.toList bs)
+  compare (Version _ as _ rs) (Version _ bs _ rs') = g (NEL.toList as) (NEL.toList bs)
     where
       g :: [VChunk] -> [VChunk] -> Ordering
       -- | If the two Versions were otherwise equal and recursed down this far,
       -- we need to compare them by their "release" values.
       g [] [] = g rs rs'
+
+      -- | If all chunks up until this point were equal, but one side continues
+      -- on with "lettered" sections, these are considered to be indicating a
+      -- beta\/prerelease, and thus are /less/ than the side who already ran out
+      -- of chunks.
+      g [] ((Str _ :| _):_) = GT
+      g ((Str _ :| _):_) [] = LT
 
       -- | If one side has run out of chunks to compare but the other hasn't,
       -- the other must be newer.
@@ -571,15 +593,18 @@ instance Ord Version where
       f (Str _ :_ ) (Digits _ :_) = LT
 
 instance Semantic Version where
-  major f (Version e ((Digits n :| []) :| cs) rs) = (\n' -> Version e ((Digits n' :| []) :| cs) rs) <$> f n
+  major f (Version e ((Digits n :| []) :| cs) me rs) =
+    (\n' -> Version e ((Digits n' :| []) :| cs) me rs) <$> f n
   major _ v = pure v
   {-# INLINE major #-}
 
-  minor f (Version e (c :| (Digits n :| []) : cs) rs) = (\n' -> Version e (c :| (Digits n' :| []) : cs) rs) <$> f n
+  minor f (Version e (c :| (Digits n :| []) : cs) me rs) =
+    (\n' -> Version e (c :| (Digits n' :| []) : cs) me rs) <$> f n
   minor _ v = pure v
   {-# INLINE minor #-}
 
-  patch f (Version e (c :| d : (Digits n :| []) : cs) rs) = (\n' -> Version e (c :| d : (Digits n' :| []) : cs) rs) <$> f n
+  patch f (Version e (c :| d : (Digits n :| []) : cs) me rs) =
+    (\n' -> Version e (c :| d : (Digits n' :| []) : cs) me rs) <$> f n
   patch _ v = pure v
   {-# INLINE patch #-}
 
@@ -591,7 +616,8 @@ instance Semantic Version where
   meta _ v = pure v
   {-# INLINE meta #-}
 
-  semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) rs) = vFromS <$> f (SemVer a b c rs [])
+  semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) me rs) =
+    vFromS <$> f (SemVer a b c me rs)
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -809,7 +835,7 @@ version' :: Parsec Void Text Version
 version' = L.lexeme space version''
 
 version'' :: Parsec Void Text Version
-version'' = Version <$> optional (try epochP) <*> chunksNE <*> preRel
+version'' = Version <$> optional (try epochP) <*> chunksNE <*> metaData <*> preRel
 
 epochP :: Parsec Void Text Word
 epochP = read <$> (some digitChar <* char ':')
@@ -857,9 +883,10 @@ prettyV (Complex m) = prettyMess m
 -- | Convert a `SemVer` back to its textual representation.
 prettySemVer :: SemVer -> Text
 prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
-  where ver = intersperse "." [ showt ma, showt mi, showt pa ]
-        pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
-        me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+  where
+    ver = intersperse "." [ showt ma, showt mi, showt pa ]
+    pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
+    me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
 
 -- | Convert a `PVP` back to its textual representation.
 prettyPVP :: PVP -> Text
@@ -867,10 +894,12 @@ prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer (Version ep cs pr) = ep' <> mconcat (ver <> pr')
-  where ver = intersperse "." . chunksAsT $ NEL.toList cs
-        pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
-        ep' = maybe "" (\e -> showt e <> ":") ep
+prettyVer (Version ep cs me pr) = ep' <> mconcat (ver <> me' <> pr')
+  where
+    ver = intersperse "." . chunksAsT $ NEL.toList cs
+    me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+    pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
+    ep' = maybe "" (\e -> showt e <> ":") ep
 
 -- | Convert a `Mess` back to its textual representation.
 prettyMess :: Mess -> Text

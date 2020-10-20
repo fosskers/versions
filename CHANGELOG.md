@@ -14,6 +14,9 @@
 
 #### Added
 
+- `Version` now has an extra field, `_vMeta :: [VChunk]` for capturing
+  "metadata" like Semver. This prevents otherwise nice-looking versions from
+  being demoted to `Mess`.
 - The `MChunk` type to accomodate the changes to `Mess` mentioned above.
 
 #### Removed
@@ -25,10 +28,12 @@
 - `""` no longer parses in any way. [#32]
 - Version strings with trailing whitespace no longer parse via `versioning`. [#33]
 - Particular edge cases involving `Mess` comparisons. [aura#646]
+- A particular edge case involving prereleases in `Version` comparisons. [aura#586]
 
 [#32]: https://github.com/fosskers/versions/issues/32
 [#33]: https://github.com/fosskers/versions/issues/33
 [aura#646]: https://github.com/fosskers/aura/issues/646
+[aura#586]: https://github.com/fosskers/aura/issues/586
 
 ## 3.5.4 (2020-05-12)
 
