@@ -552,6 +552,13 @@ instance Ord Version where
       -- we need to compare them by their "release" values.
       g [] [] = g rs rs'
 
+      -- | If all chunks up until this point were equal, but one side continues
+      -- on with "lettered" sections, these are considered to be indicating a
+      -- beta\/prerelease, and thus are /less/ than the side who already ran out
+      -- of chunks.
+      g [] ((Str _ :| _):_) = GT
+      g ((Str _ :| _):_) [] = LT
+
       -- | If one side has run out of chunks to compare but the other hasn't,
       -- the other must be newer.
       g _ []  = GT
