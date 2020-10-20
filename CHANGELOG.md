@@ -14,6 +14,9 @@
 
 #### Added
 
+- `Version` now has an extra field, `_vMeta :: [VChunk]` for capturing
+  "metadata" like Semver. This prevents otherwise nice-looking versions from
+  being demoted to `Mess`.
 - The `MChunk` type to accomodate the changes to `Mess` mentioned above.
 
 #### Removed
