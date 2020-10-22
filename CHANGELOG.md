@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+#### Fixed
+
+- An infinite loop in `Version` comparison. [aura#652]
+
+[aura#652]: https://github.com/fosskers/aura/issues/652
+
 ## 4.0.0 (2020-10-20)
 
 #### Changed
