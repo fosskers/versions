@@ -80,6 +80,7 @@ import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NEL
+import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Void (Void)
@@ -521,36 +522,20 @@ data Version = Version
 instance Semigroup Version where
   Version e c m r <> Version e' c' m' r' = Version ((+) <$> e <*> e') (c <> c') (m <> m') (r <> r')
 
--- | Set a `Version`'s epoch to `Nothing`.
-wipe :: Version -> Version
-wipe v = v { _vEpoch = Nothing }
-
 -- | Customized.
 instance Ord Version where
   -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
   -- so we need to compare their actual version numbers.
-  compare v0@(Version (Just 0) _ _ _) v1@(Version Nothing _ _ _) = compare (wipe v0) v1
-  compare v0@(Version Nothing _ _ _) v1@(Version (Just 0) _ _ _) = compare v0 (wipe v1)
-
-  -- | If a version has an epoch > 1 and the other has no epoch, the first will
-  -- be considered greater.
-  compare (Version (Just _) _ _ _) (Version Nothing _ _ _) = GT
-  compare (Version Nothing _ _ _) (Version (Just _) _ _ _) = LT
-
-  -- | If two epochs are equal, we need to compare their actual version numbers.
-  -- Otherwise, the comparison of the epochs is the only thing that matters.
-  compare v0@(Version (Just n) _ _ _) v1@(Version (Just m) _ _ _) | n == m = compare (wipe v0) (wipe v1)
-                                                                  | otherwise = compare n m
-
-  -- | The usual case. If first VChunks of each Version is equal, then we keep
-  -- recursing. Otherwise, we don't need to check further. Consider @1.2@
-  -- compared to @1.1.3.4.5.6@.
-  compare (Version _ as _ rs) (Version _ bs _ rs') = g (NEL.toList as) (NEL.toList bs)
+  compare (Version ae as _ rs) (Version be bs _ rs') = case compare (fromMaybe 0 ae) (fromMaybe 0 be) of
+    EQ  -> case g (NEL.toList as) (NEL.toList bs) of
+      -- If the two Versions were otherwise equal and recursed down this far,
+      -- we need to compare them by their "release" values.
+      EQ  -> g rs rs'
+      ord -> ord
+    ord -> ord
     where
       g :: [VChunk] -> [VChunk] -> Ordering
-      -- | If the two Versions were otherwise equal and recursed down this far,
-      -- we need to compare them by their "release" values.
-      g [] [] = g rs rs'
+      g [] [] = EQ
 
       -- | If all chunks up until this point were equal, but one side continues
       -- on with "lettered" sections, these are considered to be indicating a

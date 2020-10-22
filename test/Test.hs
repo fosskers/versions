@@ -20,6 +20,7 @@ import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
+import           Text.Printf (printf)
 
 ---
 
@@ -56,13 +57,14 @@ instance Arbitrary Version where
 goodVers :: [T.Text]
 goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1", "1:0.10.16-3"
-           , "1.11.0.git.20200404-1", "1.11.0+20200830-1" ]
+           , "1.11.0.git.20200404-1", "1.11.0+20200830-1", "1:3.20" ]
 
 badVers :: [T.Text]
 badVers = ["", "1.2 "]
 
 messes :: [T.Text]
-messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2", "1.6.0a+2014+m872b87e73dfb-1" ]
+messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2", "1.6.0a+2014+m872b87e73dfb-1"
+         , "1.3.00.16851-1", "5.2.458699.0906-1" ]
 
 messComps :: [T.Text]
 messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
@@ -172,25 +174,40 @@ suite = testGroup "Tests"
         , testCase "0.25-2 is Version" $ check $ isVersion <$> versioning "0.25-2"
         , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> versioning "1:1.2.3-1"
         , testCase "1.2.3+1-1 is Version" $ check $ isVersion <$> versioning "1.2.3+1-1"
+        , testCase "1:3.20.1-1 is Version" $ check $ isVersion <$> versioning "1:3.20.1-1"
         , testCase "000.007-1 is Mess" $ check $ isMess <$> versioning "000.007-1"
         , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> versioning "20.26.1_0-2"
+        , testCase "1:3.20.1-1 is Version" $ check $ isVersion <$> versioning "1:3.20.1-1"
         ]
       , testGroup "Bad Versions" $
         map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ versioning s) badVers
       , testGroup "Isomorphisms" $
         map (\s -> testCase (T.unpack s) $ isomorph s) $ goodSemVs ++ goodVers ++ messes
       , testGroup "Comparisons"
-        [ testCase "1.2.2r1-1 < 1.2.3-1"   $ comp versioning "1.2.2r1-1" "1.2.3-1"
-        , testCase "1.2.3-1   < 1.2.4r1-1" $ comp versioning "1.2.3-1" "1.2.4r1-1"
-        , testCase "1.2.3-1   < 2+0007-1"  $ comp versioning "1.2.3-1" "2+0007-1"
-        , testCase "1.2.3r1-1 < 2+0007-1"  $ comp versioning "1.2.3r1-1" "2+0007-1"
-        , testCase "1.2-5 < 1.2.3-1"       $ comp versioning "1.2-5" "1.2.3-1"
-        , testCase "1.6.0a+2014+m872b87e73dfb-1 < 1.6.0-1"
-          $ comp versioning "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
-        , testCase "1.11.0.git.20200404-1 < 1.11.0+20200830-1"
-          $ comp versioning "1.11.0.git.20200404-1" "1.11.0+20200830-1"
-        , testCase "0.17.0+r8+gc41db5f1-1 < 0.17.0+r157+g584760cf-1"
-          $ comp versioning "0.17.0+r8+gc41db5f1-1" "0.17.0+r157+g584760cf-1"
+        [ compVer "1.2.2r1-1" "1.2.3-1"
+        , compVer "1.2.3-1" "1.2.4r1-1"
+        , compVer "1.2.3-1" "2+0007-1"
+        , compVer "1.2.3r1-1" "2+0007-1"
+        , compVer "1.2-5" "1.2.3-1"
+        , compVer "1.6.0a+2014+m872b87e73dfb-1" "1.6.0-1"
+        , compVer "1.11.0.git.20200404-1" "1.11.0+20200830-1"
+        , compVer "0.17.0+r8+gc41db5f1-1" "0.17.0+r157+g584760cf-1"
+        , compVer "0.4.8-1" "0.4.9-1"
+        , compVer "7.42.13-4" "7.46.0-2"
+        , compVer "1.15.2-1" "1.15.3-1"
+        , compVer "2.1.16102-2" "2.1.17627-1"
+        , compVer "8.64.0.81-1" "8.65.0.78-1"
+        , compVer "1.3.00.16851-1" "1.3.00.25560-1"
+        , compVer "10.0.4-1" "10.1.0-1"
+        , compVer "1:3.20-1" "1:3.20.1-1"
+        , compVer "5.2.458699.0906-1" "5.3.472687.1012-1"
+        ]
+      , testGroup "Equality"
+        [ eqVer "1:3.20.1-1"
+        , eqVer "1.3.00.25560-1"
+        , eqVer "150_28-3"
+        , eqVer "1.0.r15.g3fc772c-5"
+        , eqVer "0.88-2"
         ]
       ]
     , testGroup "Lenses and Traversals"
@@ -204,6 +221,12 @@ suite = testGroup "Tests"
       ]
     ]
   ]
+
+compVer :: T.Text -> T.Text -> TestTree
+compVer a b = testCase (printf "%s < %s" a b) $ comp versioning a b
+
+eqVer :: T.Text -> TestTree
+eqVer a = testCase (T.unpack a) $ equal versioning a
 
 -- | Does pretty-printing return a Versioning to its original form?
 isomorph :: T.Text -> Assertion
@@ -235,6 +258,9 @@ isomorphM t = case prettyMess <$> mess t of
 
 comp :: Ord b => (T.Text -> Either a b) -> T.Text -> T.Text -> Assertion
 comp f a b = check $ (<) <$> f a <*> f b
+
+equal :: Ord r => (T.Text -> Either l r) -> T.Text -> Assertion
+equal f a = check $ (\r -> compare r r == EQ) <$> f a
 
 check :: Either a Bool -> Assertion
 check = assertBool "Some Either-based assertion failed" . either (const False) id
