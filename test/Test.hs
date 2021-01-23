@@ -78,7 +78,7 @@ badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
 
 goodSemVs :: [T.Text]
 goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
-            , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1"
+            , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1", "2.2.1-b05"
             ]
 
 -- | The exact example from `http://semver.org`
@@ -260,7 +260,7 @@ comp :: Ord b => (T.Text -> Either a b) -> T.Text -> T.Text -> Assertion
 comp f a b = check $ (<) <$> f a <*> f b
 
 equal :: Ord r => (T.Text -> Either l r) -> T.Text -> Assertion
-equal f a = check $ (\r -> compare r r == EQ) <$> f a
+equal f a = check $ (\r -> r == r) <$> f a
 
 check :: Either a Bool -> Assertion
 check = assertBool "Some Either-based assertion failed" . either (const False) id
