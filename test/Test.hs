@@ -78,7 +78,7 @@ badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
 
 goodSemVs :: [T.Text]
 goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
-            , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1"
+            , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1", "2.2.1-b05"
             ]
 
 -- | The exact example from `http://semver.org`
@@ -121,6 +121,10 @@ suite = testGroup "Tests"
         (zip semverOrd $ tail semverOrd)
       , testGroup "Whitespace Handling"
         [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] [])
+        ]
+      , testGroup "Zero Handling"
+        [ testCase "2.2.1-b05" $ semver "2.2.1-b05" @?= Right (SemVer 2 2 1 [[Str "b", Digits 0, Digits 5]] [])
+
         ]
       ]
     , testGroup "(Haskell) PVP"
@@ -260,7 +264,7 @@ comp :: Ord b => (T.Text -> Either a b) -> T.Text -> T.Text -> Assertion
 comp f a b = check $ (<) <$> f a <*> f b
 
 equal :: Ord r => (T.Text -> Either l r) -> T.Text -> Assertion
-equal f a = check $ (\r -> compare r r == EQ) <$> f a
+equal f a = check $ (\r -> r == r) <$> f a
 
 check :: Either a Bool -> Assertion
 check = assertBool "Some Either-based assertion failed" . either (const False) id

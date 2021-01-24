@@ -788,17 +788,21 @@ chunks = chunk `sepBy` char '.'
 -- since a version like @1.000.1@ would parse as @1.0.1@.
 chunk :: Parsec Void Text VChunk
 chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
-  where oneZero = (:|[]) . Digits . read . T.unpack <$> string "0"
-        zeroWithLetters = do
-          z <- Digits . read . T.unpack <$> string "0"
-          s <- PC.some sunit
-          c <- optional chunk
-          case c of
-            Nothing -> pure $ NEL.cons z s
-            Just c' -> pure $ NEL.cons z s <> c'
+  where
+    oneZero :: Parsec Void Text (NonEmpty VUnit)
+    oneZero = (Digits 0 :| []) <$ single '0'
+
+    zeroWithLetters :: Parsec Void Text (NonEmpty VUnit)
+    zeroWithLetters = do
+      z <- Digits 0 <$ single '0'
+      s <- PC.some sunit
+      c <- optional chunk
+      case c of
+        Nothing -> pure $ NEL.cons z s
+        Just c' -> pure $ NEL.cons z s <> c'
 
 iunit :: Parsec Void Text VUnit
-iunit = Digits . read <$> some digitChar
+iunit = Digits <$> ((0 <$ single '0') <|> (read <$> some digitChar))
 
 sunit :: Parsec Void Text VUnit
 sunit = Str . T.pack <$> some letterChar
