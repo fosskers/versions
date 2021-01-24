@@ -76,7 +76,6 @@ import           Control.Monad (void)
 import           Data.Bool (bool)
 import           Data.Char (isAlpha)
 import           Data.Foldable (fold)
-import           Data.Functor (($>))
 import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import           Data.List.NonEmpty (NonEmpty(..))
@@ -791,11 +790,11 @@ chunk :: Parsec Void Text VChunk
 chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
   where
     oneZero :: Parsec Void Text (NonEmpty VUnit)
-    oneZero = (:|[]) . Digits . read . T.unpack <$> string "0"
+    oneZero = (Digits 0 :| []) <$ single '0'
 
     zeroWithLetters :: Parsec Void Text (NonEmpty VUnit)
     zeroWithLetters = do
-      z <- Digits . read . T.unpack <$> string "0"
+      z <- Digits 0 <$ single '0'
       s <- PC.some sunit
       c <- optional chunk
       case c of
@@ -803,7 +802,7 @@ chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
         Just c' -> pure $ NEL.cons z s <> c'
 
 iunit :: Parsec Void Text VUnit
-iunit = Digits <$> ((single '0' $> 0) <|> (read <$> some digitChar))
+iunit = Digits <$> ((0 <$ single '0') <|> (read <$> some digitChar))
 
 sunit :: Parsec Void Text VUnit
 sunit = Str . T.pack <$> some letterChar
