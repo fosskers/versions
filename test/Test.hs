@@ -122,6 +122,10 @@ suite = testGroup "Tests"
       , testGroup "Whitespace Handling"
         [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] [])
         ]
+      , testGroup "Zero Handling"
+        [ testCase "2.2.1-b05" $ semver "2.2.1-b05" @?= Right (SemVer 2 2 1 [[Str "b", Digits 0, Digits 5]] [])
+
+        ]
       ]
     , testGroup "(Haskell) PVP"
       [ testGroup "Good PVPs" $
