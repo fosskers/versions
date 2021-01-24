@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.2 (2021-01-23)
+
+#### Fixed
+
+- A bug in zero parsing within SemVer prereleases. [#42]
+
+[#42]: https://github.com/fosskers/versions/issues/42
+
 ## 4.0.1 (2020-10-22)
 
 #### Fixed
