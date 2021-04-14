@@ -140,7 +140,7 @@ instance Ord Versioning where
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
 vFromS (SemVer ma mi pa re me) =
-  Version Nothing ((Digits ma :| []) :| [(Digits mi :| []), Digits pa :| []]) re me
+  Version Nothing ((Digits ma :| []) :| [Digits mi :| [], Digits pa :| []]) re me
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
@@ -479,14 +479,14 @@ instance Semantic PVP where
   {-# INLINE minor #-}
 
   patch f (PVP (m :| mi : pa : rs)) = (\pa' -> PVP $ m :| mi : pa' : rs) <$> f pa
-  patch f (PVP (m :| mi : []))      = (\pa' -> PVP $ m :| mi : [pa']) <$> f 0
+  patch f (PVP (m :| [mi]))         = (\pa' -> PVP $ m :| mi : [pa']) <$> f 0
   patch f (PVP (m :| []))           = (\pa' -> PVP $ m :| 0 : [pa']) <$> f 0
   {-# INLINE patch #-}
 
-  release f p = const p <$> f []
+  release f p = p <$ f []
   {-# INLINE release #-}
 
-  meta f p = const p <$> f []
+  meta f p = p <$ f []
   {-# INLINE meta #-}
 
   semantic f (PVP (m :| rs)) = (\(SemVer ma mi pa _ _) -> PVP $ ma :| [mi, pa]) <$> f s
@@ -715,7 +715,7 @@ instance Semantic Mess where
 
   -- | Good luck.
   semantic f (Mess (MDigit t0 _ :| MDigit t1 _ : MDigit t2 _ : _) _) =
-    mFromV . vFromS <$> (f $ SemVer t0 t1 t2 [] [])
+    mFromV . vFromS <$> f (SemVer t0 t1 t2 [] [])
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -845,7 +845,7 @@ mchunks = mchunk `PC.sepBy1` char '.'
 
 mchunk :: Parsec Void Text MChunk
 mchunk = choice [ try $ (\(t, i) -> MDigit i t) <$> match (L.decimal <* next)
-                , try $ (\(t, i) -> MRev i t) <$> (match (single 'r' *> L.decimal <* next))
+                , try $ (\(t, i) -> MRev i t) <$> match (single 'r' *> L.decimal <* next)
                 , MPlain . T.pack <$> some (letterChar <|> digitChar) ]
   where
     next :: Parsec Void Text ()
