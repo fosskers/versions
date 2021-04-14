@@ -74,7 +74,7 @@ import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
 import           Control.Monad (void)
 import           Data.Bool (bool)
-import           Data.Char (isAlpha)
+import           Data.Char (isAlpha, isAlphaNum)
 import           Data.Foldable (fold)
 import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
@@ -140,7 +140,11 @@ instance Ord Versioning where
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
 vFromS (SemVer ma mi pa re me) =
-  Version Nothing ((Digits ma :| []) :| [Digits mi :| [], Digits pa :| []]) re me
+  Version
+  { _vEpoch = Nothing
+  , _vChunks = (Digits ma :| []) :| [Digits mi :| [], Digits pa :| []]
+  , _vMeta = me
+  , _vRel = re }
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
@@ -150,9 +154,9 @@ mFromV (Version e v m r) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ 
     affix = Mess (chunksAsM v) m'
 
     m' :: Maybe (VSep, Mess)
-    m' = case NEL.nonEmpty m of
+    m' = case m of
       Nothing  -> r'
-      Just m'' -> Just (VPlus, Mess (chunksAsM m'') r')
+      Just m'' -> Just (VPlus, Mess (MPlain m'' :| []) r')
 
     r' :: Maybe (VSep, Mess)
     r' = case NEL.nonEmpty r of
@@ -303,7 +307,7 @@ class Semantic v where
   -- | @major.minor.patch-PREREL+meta@
   release  :: Traversal' v [VChunk]
   -- | @major.minor.patch-prerel+META@
-  meta     :: Traversal' v [VChunk]
+  meta     :: Traversal' v (Maybe Text)
   -- | A Natural Transformation into an proper `SemVer`.
   semantic :: Traversal' v SemVer
 
@@ -331,7 +335,7 @@ instance Semantic Text where
 --
 -- 2. Build metadata does not affect version precedence.
 --
--- 3. PREREL and META strings may only contain ASCII alphanumerics.
+-- 3. PREREL and META strings may only contain ASCII alphanumerics and hyphens.
 --
 -- For more information, see http://semver.org
 data SemVer = SemVer
@@ -339,7 +343,7 @@ data SemVer = SemVer
   , _svMinor  :: !Word
   , _svPatch  :: !Word
   , _svPreRel :: ![VChunk]
-  , _svMeta   :: ![VChunk] }
+  , _svMeta   :: !(Maybe Text) }
   deriving stock (Show, Generic)
   deriving anyclass (NFData, Hashable)
 
@@ -362,10 +366,10 @@ instance Ord SemVer where
 
 instance Semigroup SemVer where
   SemVer mj mn pa p m <> SemVer mj' mn' pa' p' m' =
-    SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m ++ m')
+    SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m <> m')
 
 instance Monoid SemVer where
-  mempty = SemVer 0 0 0 [] []
+  mempty = SemVer 0 0 0 [] Nothing
 
 #if !MIN_VERSION_base(4,11,0)
   mappend = (<>)
@@ -486,15 +490,15 @@ instance Semantic PVP where
   release f p = p <$ f []
   {-# INLINE release #-}
 
-  meta f p = p <$ f []
+  meta f p = p <$ f Nothing
   {-# INLINE meta #-}
 
   semantic f (PVP (m :| rs)) = (\(SemVer ma mi pa _ _) -> PVP $ ma :| [mi, pa]) <$> f s
     where
       s = case rs of
-        mi : pa : _ -> SemVer m mi pa [] []
-        mi : _      -> SemVer m mi 0  [] []
-        []          -> SemVer m 0 0   [] []
+        mi : pa : _ -> SemVer m mi pa [] Nothing
+        mi : _      -> SemVer m mi 0  [] Nothing
+        []          -> SemVer m 0 0   [] Nothing
   {-# INLINE semantic #-}
 
 --------------------------------------------------------------------------------
@@ -510,11 +514,11 @@ instance Semantic PVP where
 -- the "prerelease" (the @-p@).
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1,
--- 1:2.3.4, 1.11.0+20200830-1
+-- 1:2.3.4
 data Version = Version
   { _vEpoch  :: !(Maybe Word)
   , _vChunks :: !(NonEmpty VChunk)
-  , _vMeta   :: ![VChunk]
+  , _vMeta   :: !(Maybe Text)
   , _vRel    :: ![VChunk] }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
@@ -522,7 +526,8 @@ data Version = Version
 instance Semigroup Version where
   Version e c m r <> Version e' c' m' r' = Version ((+) <$> e <*> e') (c <> c') (m <> m') (r <> r')
 
--- | Customized.
+-- | Customized. As in SemVer, metadata is ignored for the purpose of
+-- comparison.
 instance Ord Version where
   -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
   -- so we need to compare their actual version numbers.
@@ -602,7 +607,7 @@ instance Semantic Version where
   {-# INLINE meta #-}
 
   semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) me rs) =
-    vFromS <$> f (SemVer a b c me rs)
+    vFromS <$> f (SemVer a b c rs me)
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -715,7 +720,7 @@ instance Semantic Mess where
 
   -- | Good luck.
   semantic f (Mess (MDigit t0 _ :| MDigit t1 _ : MDigit t2 _ : _) _) =
-    mFromV . vFromS <$> f (SemVer t0 t1 t2 [] [])
+    mFromV . vFromS <$> f (SemVer t0 t1 t2 [] Nothing)
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -757,7 +762,7 @@ semver' :: Parsec Void Text SemVer
 semver' = L.lexeme space semver''
 
 semver'' :: Parsec Void Text SemVer
-semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> metaData
+semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> optional metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digitsP :: Parsec Void Text Word
@@ -775,8 +780,13 @@ patchP = digitsP
 preRel :: Parsec Void Text [VChunk]
 preRel = (char '-' *> chunks) <|> pure []
 
-metaData :: Parsec Void Text [VChunk]
-metaData = (char '+' *> chunks) <|> pure []
+metaData :: Parsec Void Text Text
+metaData = do
+  void $ char '+'
+  fold . NEL.intersperse "." <$> section `PC.sepBy1` char '.'
+  where
+    section :: Parsec Void Text Text
+    section = takeWhile1P (Just "Metadata char") (\c -> isAlphaNum c || c == '-')
 
 chunksNE :: Parsec Void Text (NonEmpty VChunk)
 chunksNE = chunk `PC.sepBy1` char '.'
@@ -805,7 +815,7 @@ iunit :: Parsec Void Text VUnit
 iunit = Digits <$> ((0 <$ single '0') <|> (read <$> some digitChar))
 
 sunit :: Parsec Void Text VUnit
-sunit = Str . T.pack <$> some letterChar
+sunit = Str . T.pack <$> some (letterChar <|> single '-')
 
 -- | Parse a (Haskell) `PVP`, as defined above.
 pvp :: Text -> Either ParsingError PVP
@@ -824,7 +834,7 @@ version' :: Parsec Void Text Version
 version' = L.lexeme space version''
 
 version'' :: Parsec Void Text Version
-version'' = Version <$> optional (try epochP) <*> chunksNE <*> metaData <*> preRel
+version'' = Version <$> optional (try epochP) <*> chunksNE <*> optional metaData <*> preRel
 
 epochP :: Parsec Void Text Word
 epochP = read <$> (some digitChar <* char ':')
@@ -875,7 +885,7 @@ prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where
     ver = intersperse "." [ showt ma, showt mi, showt pa ]
     pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
-    me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+    me' = maybe [] (\m -> ["+",m]) me
 
 -- | Convert a `PVP` back to its textual representation.
 prettyPVP :: PVP -> Text
@@ -886,7 +896,7 @@ prettyVer :: Version -> Text
 prettyVer (Version ep cs me pr) = ep' <> mconcat (ver <> me' <> pr')
   where
     ver = intersperse "." . chunksAsT $ NEL.toList cs
-    me' = foldable [] ("+" :) $ intersperse "." (chunksAsT me)
+    me' = maybe [] (\m -> ["+",m]) me
     pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
     ep' = maybe "" (\e -> showt e <> ":") ep
 
