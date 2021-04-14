@@ -6,7 +6,7 @@
 module Main ( main ) where
 
 import           Data.Char (chr)
-import           Data.Either (isLeft)
+import           Data.Either (fromRight, isLeft)
 import           Data.Foldable (fold)
 import           Data.List (groupBy)
 import qualified Data.List.NonEmpty as NEL
@@ -117,8 +117,7 @@ suite = testGroup "Tests"
         testCase "1.2.3-alpha.2 == 1.2.3-alpha.2+a1b2c3.1"
         (assertBool "Equality test of two complicated SemVers failed"
          $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
-        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b)
-        (zip semverOrd $ tail semverOrd)
+        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b) semverOrd (tail semverOrd)
       , testGroup "Whitespace Handling"
         [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] [])
         ]
@@ -131,8 +130,7 @@ suite = testGroup "Tests"
       [ testGroup "Good PVPs" $
         map (\s -> testCase (T.unpack s) $ isomorphPVP s) cabalOrd
       , testGroup "Comparisons" $
-        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp pvp a b)
-        (zip cabalOrd $ tail cabalOrd)
+        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp pvp a b) cabalOrd (tail cabalOrd)
       ]
     , testGroup "(General) Versions"
       [ testGroup "Good Versions" $
@@ -154,8 +152,7 @@ suite = testGroup "Tests"
       , testGroup "Bad Versions (shouldn't parse)" $
         map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ mess s) badVers
       , testGroup "Comparisons" $
-        map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) $
-        zip messComps (tail messComps)
+        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) messComps (tail messComps)
       , testGroup "SemVer-like Value Extraction"
         [ testCase "messMajor" $
           (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messMajor) @?= Just 1
@@ -267,7 +264,7 @@ equal :: Ord r => (T.Text -> Either l r) -> T.Text -> Assertion
 equal f a = check $ (\r -> r == r) <$> f a
 
 check :: Either a Bool -> Assertion
-check = assertBool "Some Either-based assertion failed" . either (const False) id
+check = assertBool "Some Either-based assertion failed" . fromRight False
 
 isSemVer :: Versioning -> Bool
 isSemVer (Ideal _) = True
