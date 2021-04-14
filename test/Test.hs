@@ -51,13 +51,14 @@ instance Arbitrary Letter where
   arbitrary = Letter . chr <$> choose (97, 122)
 
 instance Arbitrary Version where
-  arbitrary = Version <$> arbitrary <*> chunksNE <*> pure Nothing <*> chunks
+  arbitrary = Version <$> arbitrary <*> chunksNE <*> chunks <*> pure Nothing
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
 goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.157-1"
            , "0.25-2",  "8.u51-1", "21-2", "7.1p1-1", "20150826-1", "1:0.10.16-3"
-           , "1.11.0.git.20200404-1", "1.11.0+20200830-1", "1:3.20" ]
+           , "1.11.0.git.20200404-1", "1.11.0+20200830-1", "1:3.20"
+           ]
 
 badVers :: [T.Text]
 badVers = ["", "1.2 "]

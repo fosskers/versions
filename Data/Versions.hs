@@ -148,7 +148,7 @@ vFromS (SemVer ma mi pa re me) =
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
-mFromV (Version e v m r) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ Just (VColon, affix)) e
+mFromV (Version e v r m) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ Just (VColon, affix)) e
   where
     affix :: Mess
     affix = Mess (chunksAsM v) m'
@@ -510,7 +510,7 @@ instance Semantic PVP where
 --
 -- Generally conforms to the @a.b.c-p@ pattern, and may optionally have an
 -- /epoch/ and /metadata/. Epochs are prefixes marked by a colon, like in
--- @1:2.3.4@. Metadata is prefixed by @+@, and unlike SemVer can appear before
+-- @1:2.3.4@. Metadata is prefixed by @+@, and like SemVer must appear after
 -- the "prerelease" (the @-p@).
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1,
@@ -518,8 +518,8 @@ instance Semantic PVP where
 data Version = Version
   { _vEpoch  :: !(Maybe Word)
   , _vChunks :: !(NonEmpty VChunk)
-  , _vMeta   :: !(Maybe Text)
-  , _vRel    :: ![VChunk] }
+  , _vRel    :: ![VChunk]
+  , _vMeta   :: !(Maybe Text) }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
@@ -531,7 +531,7 @@ instance Semigroup Version where
 instance Ord Version where
   -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
   -- so we need to compare their actual version numbers.
-  compare (Version ae as _ rs) (Version be bs _ rs') = case compare (fromMaybe 0 ae) (fromMaybe 0 be) of
+  compare (Version ae as rs _) (Version be bs rs' _) = case compare (fromMaybe 0 ae) (fromMaybe 0 be) of
     EQ  -> case g (NEL.toList as) (NEL.toList bs) of
       -- If the two Versions were otherwise equal and recursed down this far,
       -- we need to compare them by their "release" values.
@@ -606,7 +606,7 @@ instance Semantic Version where
   meta _ v = pure v
   {-# INLINE meta #-}
 
-  semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) me rs) =
+  semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) rs me) =
     vFromS <$> f (SemVer a b c rs me)
   semantic _ v = pure v
   {-# INLINE semantic #-}
@@ -684,7 +684,7 @@ messPatch _                                  = Nothing
 --
 -- Example: @1.6.0a+2014+m872b87e73dfb-1@ We should be able to extract @0a@ safely.
 messPatchChunk :: Mess -> Maybe VChunk
-messPatchChunk (Mess (_ :| _ : MPlain p : _) _) = hush $ parse chunk "Chunk" p
+messPatchChunk (Mess (_ :| _ : MPlain p : _) _) = hush $ parse (chunkWith unit) "Chunk" p
 messPatchChunk _                                = Nothing
 
 instance Ord Mess where
@@ -789,15 +789,15 @@ metaData = do
     section = takeWhile1P (Just "Metadata char") (\c -> isAlphaNum c || c == '-')
 
 chunksNE :: Parsec Void Text (NonEmpty VChunk)
-chunksNE = chunk `PC.sepBy1` char '.'
+chunksNE = chunkWith unit'  `PC.sepBy1` char '.'
 
 chunks :: Parsec Void Text [VChunk]
-chunks = chunk `sepBy` char '.'
+chunks = chunkWith unit `sepBy` char '.'
 
 -- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
 -- since a version like @1.000.1@ would parse as @1.0.1@.
-chunk :: Parsec Void Text VChunk
-chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
+chunkWith :: Parsec Void Text VUnit -> Parsec Void Text VChunk
+chunkWith u = try zeroWithLetters <|> oneZero <|> PC.some u
   where
     oneZero :: Parsec Void Text (NonEmpty VUnit)
     oneZero = (Digits 0 :| []) <$ single '0'
@@ -806,16 +806,27 @@ chunk = try zeroWithLetters <|> oneZero <|> PC.some (iunit <|> sunit)
     zeroWithLetters = do
       z <- Digits 0 <$ single '0'
       s <- PC.some sunit
-      c <- optional chunk
+      c <- optional (chunkWith u)
       case c of
         Nothing -> pure $ NEL.cons z s
         Just c' -> pure $ NEL.cons z s <> c'
+
+unit :: Parsec Void Text VUnit
+unit = iunit <|> sunit
+
+unit' :: Parsec Void Text VUnit
+unit' = iunit <|> sunit'
 
 iunit :: Parsec Void Text VUnit
 iunit = Digits <$> ((0 <$ single '0') <|> (read <$> some digitChar))
 
 sunit :: Parsec Void Text VUnit
 sunit = Str . T.pack <$> some (letterChar <|> single '-')
+
+-- | Same as `sunit`, but don't allow hyphens. Intended for the main body of
+-- `Version`.
+sunit' :: Parsec Void Text VUnit
+sunit' = Str . T.pack <$> some letterChar
 
 -- | Parse a (Haskell) `PVP`, as defined above.
 pvp :: Text -> Either ParsingError PVP
@@ -834,7 +845,7 @@ version' :: Parsec Void Text Version
 version' = L.lexeme space version''
 
 version'' :: Parsec Void Text Version
-version'' = Version <$> optional (try epochP) <*> chunksNE <*> optional metaData <*> preRel
+version'' = Version <$> optional (try epochP) <*> chunksNE <*> preRel <*> optional metaData
 
 epochP :: Parsec Void Text Word
 epochP = read <$> (some digitChar <* char ':')
@@ -893,7 +904,7 @@ prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer (Version ep cs me pr) = ep' <> mconcat (ver <> me' <> pr')
+prettyVer (Version ep cs pr me) = ep' <> mconcat (ver <> me' <> pr')
   where
     ver = intersperse "." . chunksAsT $ NEL.toList cs
     me' = maybe [] (\m -> ["+",m]) me
