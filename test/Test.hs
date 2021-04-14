@@ -25,7 +25,7 @@ import           Text.Printf (printf)
 ---
 
 instance Arbitrary SemVer where
-  arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> chunks <*> chunks
+  arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> chunks <*> pure Nothing
 
 -- | Sane generation of VChunks.
 chunks :: Gen [VChunk]
@@ -51,7 +51,7 @@ instance Arbitrary Letter where
   arbitrary = Letter . chr <$> choose (97, 122)
 
 instance Arbitrary Version where
-  arbitrary = Version <$> arbitrary <*> chunksNE <*> chunks <*> chunks
+  arbitrary = Version <$> arbitrary <*> chunksNE <*> pure Nothing <*> chunks
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
@@ -72,13 +72,16 @@ messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
             ]
 
 badSemVs :: [T.Text]
-badSemVs = [ "1", "1.2", "1.2.3+a1b2bc3.1-alpha.2", "a.b.c", "1.01.1"
-           , "1.2.3+a1b!2c3.1", "", "1.2.3 "
+badSemVs = [ "1", "1.2", "a.b.c", "1.01.1", "1.2.3+a1b!2c3.1", "", "1.2.3 "
            ]
 
 goodSemVs :: [T.Text]
 goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
             , "1.2.3+a1b2c3.1", "1.2.3-alpha.2+a1b2c3.1", "2.2.1-b05"
+            -- Weird Pre-releases
+            , "1.0.0-x-y-z.-"
+            -- Weird metadata
+            , "1.0.0-alpha+001", "1.0.0+21AF26D3---117B344092BD"
             ]
 
 -- | The exact example from `http://semver.org`
@@ -119,10 +122,10 @@ suite = testGroup "Tests"
          $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
         zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b) semverOrd (tail semverOrd)
       , testGroup "Whitespace Handling"
-        [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] [])
+        [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] Nothing)
         ]
       , testGroup "Zero Handling"
-        [ testCase "2.2.1-b05" $ semver "2.2.1-b05" @?= Right (SemVer 2 2 1 [[Str "b", Digits 0, Digits 5]] [])
+        [ testCase "2.2.1-b05" $ semver "2.2.1-b05" @?= Right (SemVer 2 2 1 [[Str "b", Digits 0, Digits 5]] Nothing)
 
         ]
       ]
@@ -171,10 +174,10 @@ suite = testGroup "Tests"
         [ testCase "1.2.3 is SemVer" $ check $ isSemVer <$> versioning "1.2.3"
         , testCase "1.2.3-1 is SemVer" $ check $ isSemVer <$> versioning "1.2.3-1"
         , testCase "1.2.3-1+1 is SemVer" $ check $ isSemVer <$> versioning "1.2.3-1+1"
+        , testCase "1.2.3+1-1 is SemVer" $ check $ isSemVer <$> versioning "1.2.3+1-1"
         , testCase "1.2.3r1 is Version" $ check $ isVersion <$> versioning "1.2.3r1"
         , testCase "0.25-2 is Version" $ check $ isVersion <$> versioning "0.25-2"
         , testCase "1:1.2.3-1 is Version" $ check $ isVersion <$> versioning "1:1.2.3-1"
-        , testCase "1.2.3+1-1 is Version" $ check $ isVersion <$> versioning "1.2.3+1-1"
         , testCase "1:3.20.1-1 is Version" $ check $ isVersion <$> versioning "1:3.20.1-1"
         , testCase "000.007-1 is Mess" $ check $ isMess <$> versioning "000.007-1"
         , testCase "20.26.1_0-2 is Mess" $ check $ isMess <$> versioning "20.26.1_0-2"
@@ -218,7 +221,7 @@ suite = testGroup "Tests"
       ]
     , testGroup "Megaparsec Behaviour"
       [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"
-      , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right(Ideal $ SemVer 3 2 14 [[Digits 1]] [])
+      , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right(Ideal $ SemVer 3 2 14 [[Digits 1, Str "-x", Digits 86]] Nothing)
       ]
     ]
   ]
@@ -280,8 +283,8 @@ isMess _           = False
 
 incPatch :: Assertion
 incPatch = (v1 & patch %~ (+ 1)) @?= v2
-  where v1 = Ideal $ SemVer 1 2 3 [] []
-        v2 = Ideal $ SemVer 1 2 4 [] []
+  where v1 = Ideal $ SemVer 1 2 3 [] Nothing
+        v2 = Ideal $ SemVer 1 2 4 [] Nothing
 
 incFromT :: Assertion
 incFromT = (("1.2.3" :: T.Text) & patch %~ (+ 1)) @?= "1.2.4"
