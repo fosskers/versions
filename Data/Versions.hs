@@ -7,7 +7,7 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2020
+-- Copyright : (c) Colin Woodbury, 2015 - 2021
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colin@fosskers.ca>
 --
@@ -28,6 +28,8 @@
 -- Please switch to <http://semver.org Semantic Versioning> if you aren't
 -- currently using it. It provides consistency in version incrementing and has
 -- the best constraints on comparisons.
+--
+-- __This library implements version @2.0.0@ of the SemVer spec.__
 --
 -- == Using the Parsers
 -- In general, `versioning` is the function you want. It attempts to parse a
@@ -250,16 +252,19 @@ _Mess :: Traversal' Text Mess
 _Mess f t = either (const (pure t)) (fmap prettyMess . f) $ mess t
 {-# INLINE _Mess #-}
 
+-- | Possibly extract a `SemVer` from a `Versioning`.
 _Ideal :: Traversal' Versioning SemVer
 _Ideal f (Ideal s) = Ideal <$> f s
 _Ideal _ v         = pure v
 {-# INLINE _Ideal #-}
 
+-- | Possibly extract a `Version` from a `Versioning`.
 _General :: Traversal' Versioning Version
 _General f (General v) = General <$> f v
 _General _ v           = pure v
 {-# INLINE _General #-}
 
+-- | Possibly extract a `Mess` from a `Versioning`.
 _Complex :: Traversal' Versioning Mess
 _Complex f (Complex m) = Complex <$> f m
 _Complex _ v           = pure v
@@ -422,11 +427,13 @@ digits = Digits
 str :: Text -> Maybe VUnit
 str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
 
+-- | Possibly traverse the inner digit value of a `VUnit`.
 _Digits :: Traversal' VUnit Word
 _Digits f (Digits i) = Digits <$> f i
 _Digits _ v          = pure v
 {-# INLINE _Digits #-}
 
+-- | Possibly traverse the inner text of a `VUnit`.
 _Str :: Traversal' VUnit Text
 _Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
 _Str _ v       = pure v
@@ -611,6 +618,7 @@ instance Semantic Version where
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
+-- | A `Version`'s inner epoch `Word`.
 epoch :: Lens' Version (Maybe Word)
 epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 {-# INLINE epoch #-}
@@ -738,7 +746,7 @@ data VSep = VColon | VHyphen | VPlus | VUnder
 --------------------------------------------------------------------------------
 -- Parsing
 
--- | A synonym for the more verbose `megaparsec` error type.
+-- | A synonym for the more verbose 'megaparsec' error type.
 type ParsingError = ParseErrorBundle Text Void
 
 -- | Parse a piece of `Text` into either an (Ideal) `SemVer`, a (General)

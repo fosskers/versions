@@ -1,5 +1,33 @@
 # Changelog
 
+## 5.0.0 (2021-04-14)
+
+This release brings `versions` in line with version `2.0.0` of the SemVer spec.
+The main addition to the spec is the allowance of hyphens in both the prerelease
+and metadata sections. As such, **certain versions like `1.2.3+1-1` which
+previously would not parse as SemVer now do.**
+
+To accomodate this and other small spec updates, the `SemVer` and `Version`
+types have received breaking changes here.
+
+#### Changed
+
+- **Breaking:** The `_svMeta` field of `SemVer` is now parsed as a dumber `Maybe
+  Text` instead of `[VChunk]`, due to metadata now being allowed to possess
+  leading zeroes.
+- **Breaking:** Like the above, the `_vMeta` field of `Version` is now `Maybe Text`.
+- **Breaking: The `_vRel` and `_vMeta` fields of `Version` have had their order
+  flipped.** Further, the prelease and meta sections are now expected in the
+  same order as `SemVer` when parsing (prerel first, meta second). `Version` is
+  thus now a quite similar to `SemVer`, except allowing letters in more
+  permissive positions.
+- **Breaking:** The `meta` traversal has been altered to accomodate the metadata
+  field changes.
+
+#### Fixed
+
+- Parsing certain legal SemVers specified in the spec.
+
 ## 4.0.3 (2021-02-23)
 
 #### Changed
