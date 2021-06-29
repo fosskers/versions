@@ -696,7 +696,6 @@ messPatchChunk (Mess (_ :| _ : MPlain p : _) _) = hush $ parse (chunkWith unit) 
 messPatchChunk _                                = Nothing
 
 instance Ord Mess where
-  compare (Mess t1 Nothing) (Mess t2 Nothing) = compare t1 t2
   compare (Mess t1 m1) (Mess t2 m2) = case compare t1 t2 of
     EQ  -> case (m1, m2) of
       (Just (_, v1), Just (_, v2)) -> compare v1 v2
