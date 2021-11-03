@@ -13,11 +13,11 @@ jobs:
       - name: Setup GHC
         uses: actions/setup-haskell@v1.1.4
         with:
-          ghc-version: "8.10.4"
+          ghc-version: "8.10.7"
           enable-stack: true
 
       - name: Clone project
-        uses: actions/checkout@v2.3.5
+        uses: actions/checkout@v2.4.0
 
       - name: Cache dependencies
         uses: actions/cache@v2.1.6
