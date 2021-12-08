@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 5.0.1 (2021-12-08)
+
+#### Changed
+
+- Support for GHC 9.2.
 
 #### Fixed
 
