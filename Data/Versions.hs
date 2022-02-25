@@ -7,7 +7,7 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2021
+-- Copyright : (c) Colin Woodbury, 2015 - 2022
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colin@fosskers.ca>
 --
@@ -911,7 +911,7 @@ prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer (Version ep cs pr me) = ep' <> mconcat (ver <> me' <> pr')
+prettyVer (Version ep cs pr me) = ep' <> mconcat (ver <> pr' <> me')
   where
     ver = intersperse "." . chunksAsT $ NEL.toList cs
     me' = maybe [] (\m -> ["+",m]) me
