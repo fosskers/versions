@@ -13,9 +13,8 @@ jobs:
       - name: Setup GHC
         uses: haskell/actions/setup@v2
         with:
-          ghc-version: "9.0.2"
+          ghc-version: "9.2.6"
           enable-stack: true
-          stack-version: "latest"
 
       - name: Clone project
         uses: actions/checkout@v3
