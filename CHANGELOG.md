@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.0.5 (2023-03-23)
+
+#### Changed
+
+- Bumped `base` bound to support GHC 9.6.
+
 ## 5.0.4 (2022-10-18)
 
 #### Changed
