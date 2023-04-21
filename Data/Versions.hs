@@ -137,7 +137,7 @@ instance Ord Versioning where
   compare (General v)   (Complex m)  = compare (mFromV v) m
   compare (Complex m)   (General v)  = opposite $ compare (mFromV v) m
   compare (Ideal s)     (Complex m)  = semverAndMess s m
-  compare (Complex m) (Ideal s)      = opposite $ semverAndMess s m
+  compare (Complex m)   (Ideal s)    = opposite $ semverAndMess s m
 
 -- | Convert a `SemVer` to a `Version`.
 vFromS :: SemVer -> Version
@@ -736,9 +736,10 @@ instance Semantic Mess where
 --
 -- * A colon (:). Often denotes an "epoch".
 -- * A hyphen (-).
+-- * A tilde (~). Example: @12.0.0-3ubuntu1~20.04.5@
 -- * A plus (+). Stop using this outside of metadata if you are. Example: @10.2+0.93+1-1@
 -- * An underscore (_). Stop using this if you are.
-data VSep = VColon | VHyphen | VPlus | VUnder
+data VSep = VColon | VHyphen | VPlus | VUnder | VTilde
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
@@ -883,13 +884,15 @@ sep :: Parsec Void Text VSep
 sep = choice [ VColon  <$ char ':'
              , VHyphen <$ char '-'
              , VPlus   <$ char '+'
-             , VUnder  <$ char '_' ]
+             , VUnder  <$ char '_'
+             , VTilde  <$ char '~' ]
 
 sepCh :: VSep -> Char
 sepCh VColon  = ':'
 sepCh VHyphen = '-'
 sepCh VPlus   = '+'
 sepCh VUnder  = '_'
+sepCh VTilde  = '~'
 
 -- | Convert any parsed Versioning type to its textual representation.
 prettyV :: Versioning -> Text
