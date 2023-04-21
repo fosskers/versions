@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.1.0 (2023-04-21)
+
+#### Changed
+
+- Versions with `~` in their metadata will now parse as a `Mess`. Example: `12.0.0-3ubuntu1~20.04.5`
+
 ## 5.0.5 (2023-03-23)
 
 #### Changed
