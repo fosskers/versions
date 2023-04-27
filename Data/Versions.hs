@@ -82,7 +82,7 @@ import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NEL
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Void (Void)
@@ -90,10 +90,7 @@ import           GHC.Generics (Generic)
 import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-
-#if !MIN_VERSION_base(4,11,0)
-import           Data.Semigroup
-#endif
+import           Text.Megaparsec.Char.Lexer (decimal)
 
 ---
 
@@ -144,27 +141,27 @@ vFromS :: SemVer -> Version
 vFromS (SemVer ma mi pa re me) =
   Version
   { _vEpoch = Nothing
-  , _vChunks = (Digits ma :| []) :| [Digits mi :| [], Digits pa :| []]
+  , _vChunks = Chunks $ Numeric ma :| [Numeric mi, Numeric pa]
   , _vMeta = me
   , _vRel = re }
 
 -- | Convert a `Version` to a `Mess`.
 mFromV :: Version -> Mess
-mFromV (Version e v r m) = maybe affix (\a -> Mess (MDigit a (showt a) :| []) $ Just (VColon, affix)) e
+mFromV (Version me (Chunks v) r _) = case me of
+  Nothing -> f
+  Just e  ->
+    let cs = NEL.singleton . MDigit e $ showt e
+    in Mess cs $ Just (VColon, f)
   where
-    affix :: Mess
-    affix = Mess (chunksAsM v) m'
+    f :: Mess
+    f = Mess cs $ fmap g r
+      where
+        cs = NEL.map toMChunk v
 
-    m' :: Maybe (VSep, Mess)
-    m' = case m of
-      Nothing  -> r'
-      Just m'' -> Just (VPlus, Mess (MPlain m'' :| []) r')
-
-    r' :: Maybe (VSep, Mess)
-    r' = case NEL.nonEmpty r of
-      Nothing  -> Nothing
-      Just r'' -> Just (VHyphen, Mess (chunksAsM r'') Nothing)
-
+    g :: Release -> (VSep, Mess)
+    g (Release cs) = (VHyphen, Mess ms Nothing)
+      where
+        ms = NEL.map toMChunk cs
 
 -- | Special logic for when semver-like values can be extracted from a `Mess`.
 -- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
@@ -310,7 +307,7 @@ class Semantic v where
   -- | @major.minor.PATCH-prerel+meta@
   patch    :: Traversal' v Word
   -- | @major.minor.patch-PREREL+meta@
-  release  :: Traversal' v [VChunk]
+  release  :: Traversal' v (Maybe Release)
   -- | @major.minor.patch-prerel+META@
   meta     :: Traversal' v (Maybe Text)
   -- | A Natural Transformation into an proper `SemVer`.
@@ -347,7 +344,7 @@ data SemVer = SemVer
   { _svMajor  :: !Word
   , _svMinor  :: !Word
   , _svPatch  :: !Word
-  , _svPreRel :: ![VChunk]
+  , _svPreRel :: !(Maybe Release)
   , _svMeta   :: !(Maybe Text) }
   deriving stock (Show, Generic)
   deriving anyclass (NFData, Hashable)
@@ -383,6 +380,85 @@ instance Semantic SemVer where
 
   semantic = ($)
   {-# INLINE semantic #-}
+
+-- | `Chunk`s have comparison behaviour according to SemVer's rules for preleases.
+newtype Release = Release (NonEmpty Chunk)
+  deriving stock (Eq, Show, Read, Generic)
+  deriving anyclass (NFData, Hashable)
+
+instance Ord Release where
+  compare (Release as) (Release bs) =
+    fromMaybe EQ . listToMaybe . mapMaybe f $ zipLongest (NEL.toList as) (NEL.toList bs)
+    where
+      f :: These Chunk Chunk -> Maybe Ordering
+      f (Both a b) = case cmpSemVer a b of
+        LT -> Just LT
+        GT -> Just GT
+        EQ -> Nothing
+      f (This _)   = Just GT
+      f (That _)   = Just LT
+
+-- | A logical unit of a version number.
+--
+-- Either entirely numerical (with no leading zeroes) or entirely alphanumerical
+-- (with a free mixture of numbers, letters, and hyphens.)
+--
+-- Groups of these (like `Release`) are separated by periods to form a full
+-- section of a version number.
+--
+-- Examples:
+--
+-- @
+-- 1
+-- 20150826
+-- r3
+-- 0rc1-abc3
+-- @
+data Chunk = Numeric Word | Alphanum Text
+  deriving stock (Eq, Show, Read, Generic)
+  deriving anyclass (NFData, Hashable)
+
+toMChunk :: Chunk -> MChunk
+toMChunk (Numeric n)  = MDigit n $ showt n
+toMChunk (Alphanum s) = MPlain s
+
+-- | `Chunk` is used in multiple places but requires different comparison
+-- semantics depending on the wrapping type. This function and `cmpLenient`
+-- below provide this.
+cmpSemVer :: Chunk -> Chunk -> Ordering
+cmpSemVer (Numeric a) (Numeric b)   = compare a b
+cmpSemVer (Numeric _) (Alphanum _)  = LT
+cmpSemVer (Alphanum _) (Numeric _)  = GT
+cmpSemVer (Alphanum a) (Alphanum b) = compare a b
+
+-- | Like `cmpSemVer`, but for `Version`s. We need to be mindful of comparisons
+-- like @1.2.0 > 1.2.0rc1@ which normally wouldn't occur in SemVer.
+cmpLenient :: Chunk -> Chunk -> Ordering
+cmpLenient (Numeric a) (Numeric b)       = compare a b
+cmpLenient a@(Alphanum x) b@(Alphanum y) =
+  case (singleDigitLenient a, singleDigitLenient b) of
+    (Just i, Just j) -> compare i j
+    _                -> compare x y
+cmpLenient (Numeric n) b@(Alphanum _) =
+  case singleDigitLenient b of
+    Nothing -> GT
+    Just m -> case compare n m of
+      -- 1.2.0 > 1.2.0rc1
+      EQ -> GT
+      c  -> c
+cmpLenient a@(Alphanum _) (Numeric n) =
+  case singleDigitLenient a of
+    Nothing -> LT
+    Just m -> case compare m n of
+      -- 1.2.0rc1 < 1.2.0
+      EQ -> LT
+      c  -> c
+
+-- | Like `singleDigit` but will grab a leading `Word` even if followed by
+-- letters.
+singleDigitLenient :: Chunk -> Maybe Word
+singleDigitLenient (Numeric n)  = Just n
+singleDigitLenient (Alphanum s) = hush $ parse digitsP "Single Digit Lenient" s
 
 -- | A single unit of a Version. May be digits or a string of characters. Groups
 -- of these are called `VChunk`s, and are the identifiers separated by periods
@@ -452,7 +528,7 @@ instance Semantic PVP where
   patch f (PVP (m :| []))           = (\pa' -> PVP $ m :| 0 : [pa']) <$> f 0
   {-# INLINE patch #-}
 
-  release f p = p <$ f []
+  release f p = p <$ f Nothing
   {-# INLINE release #-}
 
   meta f p = p <$ f Nothing
@@ -461,105 +537,64 @@ instance Semantic PVP where
   semantic f (PVP (m :| rs)) = (\(SemVer ma mi pa _ _) -> PVP $ ma :| [mi, pa]) <$> f s
     where
       s = case rs of
-        mi : pa : _ -> SemVer m mi pa [] Nothing
-        mi : _      -> SemVer m mi 0  [] Nothing
-        []          -> SemVer m 0 0   [] Nothing
+        mi : pa : _ -> SemVer m mi pa Nothing Nothing
+        mi : _      -> SemVer m mi 0  Nothing Nothing
+        []          -> SemVer m 0 0   Nothing Nothing
   {-# INLINE semantic #-}
 
 --------------------------------------------------------------------------------
 -- (General) Version
 
--- | A (General) Version.
--- Not quite as ideal as a `SemVer`, but has some internal consistancy
--- from version to version.
+-- | A version number with decent structure and comparison logic.
 --
--- Generally conforms to the @a.b.c-p@ pattern, and may optionally have an
--- /epoch/ and /metadata/. Epochs are prefixes marked by a colon, like in
--- @1:2.3.4@. Metadata is prefixed by @+@, and like SemVer must appear after
--- the "prerelease" (the @-p@).
+-- This is a /descriptive/ scheme, meaning that it encapsulates the most common,
+-- unconscious patterns that developers use when assigning version numbers to
+-- their software. If not `SemVer`, most version numbers found in the wild will
+-- parse as a `Version`. These generally conform to the @x.x.x-x@ pattern, and
+-- may optionally have an /epoch/.
+--
+-- Epochs are prefixes marked by a colon, like in @1:2.3.4@. When comparing two
+-- `Version` values, epochs take precedent. So @2:1.0.0 > 1:9.9.9@. If one of
+-- the given `Version`s has no epoch, its epoch is assumed to be 0.
 --
 -- Examples of @Version@ that are not @SemVer@: 0.25-2, 8.u51-1, 20150826-1,
 -- 1:2.3.4
 data Version = Version
   { _vEpoch  :: !(Maybe Word)
-  , _vChunks :: !(NonEmpty VChunk)
-  , _vRel    :: ![VChunk]
+  , _vChunks :: !Chunks
+  , _vRel    :: !(Maybe Release)
   , _vMeta   :: !(Maybe Text) }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData, Hashable)
 
-instance Semigroup Version where
-  Version e c m r <> Version e' c' m' r' = Version ((+) <$> e <*> e') (c <> c') (m <> m') (r <> r')
-
 -- | Customized. As in SemVer, metadata is ignored for the purpose of
 -- comparison.
 instance Ord Version where
-  -- | For the purposes of Versions with epochs, `Nothing` is the same as `Just 0`,
-  -- so we need to compare their actual version numbers.
-  compare (Version ae as rs _) (Version be bs rs' _) = case compare (fromMaybe 0 ae) (fromMaybe 0 be) of
-    EQ  -> case g (NEL.toList as) (NEL.toList bs) of
-      -- If the two Versions were otherwise equal and recursed down this far,
-      -- we need to compare them by their "release" values.
-      EQ  -> g rs rs'
+  -- If two epochs are equal, we need to compare their actual version numbers.
+  -- Otherwise, the comparison of the epochs is the only thing that matters.
+  compare (Version mae ac ar _) (Version mbe bc br _) =
+    case compare ae be of
+      EQ -> case compare ac bc of
+        EQ  -> compare ar br
+        ord -> ord
       ord -> ord
-    ord -> ord
     where
-      g :: [VChunk] -> [VChunk] -> Ordering
-      g [] [] = EQ
-
-      -- | If all chunks up until this point were equal, but one side continues
-      -- on with "lettered" sections, these are considered to be indicating a
-      -- beta\/prerelease, and thus are /less/ than the side who already ran out
-      -- of chunks.
-      g [] ((Str _ :| _):_) = GT
-      g ((Str _ :| _):_) [] = LT
-
-      -- | If one side has run out of chunks to compare but the other hasn't,
-      -- the other must be newer.
-      g _ []  = GT
-      g [] _  = LT
-
-      -- | The usual case.
-      g (x:xs) (y:ys) = case f (NEL.toList x) (NEL.toList y) of
-        EQ  -> g xs ys
-        res -> res
-
-      f :: [VUnit] -> [VUnit] -> Ordering
-      f [] [] = EQ
-
-      -- | Opposite of the above. If we've recursed this far and one side
-      -- has fewer chunks, it must be the "greater" version. A Chunk break
-      -- only occurs in a switch from digits to letters and vice versa, so
-      -- anything "extra" must be an @rc@ marking or similar. Consider @1.1@
-      -- compared to @1.1rc1@.
-      f [] _  = GT
-      f _ []  = LT
-
-      -- | The usual case.
-      f (Digits n:ns) (Digits m:ms) | n > m = GT
-                                    | n < m = LT
-                                    | otherwise = f ns ms
-      f (Str n:ns) (Str m:ms) | n > m = GT
-                              | n < m = LT
-                              | otherwise = f ns ms
-
-      -- | An arbitrary decision to prioritize digits over letters.
-      f (Digits _ :_) (Str _ :_) = GT
-      f (Str _ :_ ) (Digits _ :_) = LT
+      ae = fromMaybe 0 mae
+      be = fromMaybe 0 mbe
 
 instance Semantic Version where
-  major f (Version e ((Digits n :| []) :| cs) me rs) =
-    (\n' -> Version e ((Digits n' :| []) :| cs) me rs) <$> f n
+  major f (Version e (Chunks (Numeric n :| cs)) me rs) =
+    (\n' -> Version e (Chunks $ Numeric n' :| cs) me rs) <$> f n
   major _ v = pure v
   {-# INLINE major #-}
 
-  minor f (Version e (c :| (Digits n :| []) : cs) me rs) =
-    (\n' -> Version e (c :| (Digits n' :| []) : cs) me rs) <$> f n
+  minor f (Version e (Chunks (c :| Numeric n : cs)) me rs) =
+    (\n' -> Version e (Chunks $ c :| Numeric n' : cs) me rs) <$> f n
   minor _ v = pure v
   {-# INLINE minor #-}
 
-  patch f (Version e (c :| d : (Digits n :| []) : cs) me rs) =
-    (\n' -> Version e (c :| d : (Digits n' :| []) : cs) me rs) <$> f n
+  patch f (Version e (Chunks (c :| d : Numeric n : cs)) me rs) =
+    (\n' -> Version e (Chunks $ c :| d : Numeric n' : cs) me rs) <$> f n
   patch _ v = pure v
   {-# INLINE patch #-}
 
@@ -571,7 +606,7 @@ instance Semantic Version where
   meta _ v = pure v
   {-# INLINE meta #-}
 
-  semantic f (Version _ ((Digits a:|[]) :| (Digits b:|[]) : (Digits c:|[]) : _) rs me) =
+  semantic f (Version _ (Chunks (Numeric a :| Numeric b : Numeric c : _)) rs me) =
     vFromS <$> f (SemVer a b c rs me)
   semantic _ v = pure v
   {-# INLINE semantic #-}
@@ -580,6 +615,23 @@ instance Semantic Version where
 epoch :: Lens' Version (Maybe Word)
 epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 {-# INLINE epoch #-}
+
+-- | `Chunk`s that have a comparison behaviour specific to `Version`.
+newtype Chunks = Chunks (NonEmpty Chunk)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData, Hashable)
+
+instance Ord Chunks where
+  compare (Chunks as) (Chunks bs) =
+    fromMaybe EQ . listToMaybe . mapMaybe f $ zipLongest (NEL.toList as) (NEL.toList bs)
+    where
+      f :: These Chunk Chunk -> Maybe Ordering
+      f (Both a b) = case cmpLenient a b of
+        LT -> Just LT
+        GT -> Just GT
+        EQ -> Nothing
+      f (This _)   = Just GT
+      f (That _)   = Just LT
 
 --------------------------------------------------------------------------------
 -- (Complex) Mess
@@ -685,7 +737,7 @@ instance Semantic Mess where
 
   -- | Good luck.
   semantic f (Mess (MDigit t0 _ :| MDigit t1 _ : MDigit t2 _ : _) _) =
-    mFromV . vFromS <$> f (SemVer t0 t1 t2 [] Nothing)
+    mFromV . vFromS <$> f (SemVer t0 t1 t2 Nothing Nothing)
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -728,11 +780,11 @@ semver' :: Parsec Void Text SemVer
 semver' = L.lexeme space semver''
 
 semver'' :: Parsec Void Text SemVer
-semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> preRel <*> optional metaData
+semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> optional releaseP <*> optional metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 digitsP :: Parsec Void Text Word
-digitsP = read <$> ((T.unpack <$> string "0") <|> some digitChar)
+digitsP = (0 <$ char '0') <|> decimal
 
 majorP :: Parsec Void Text Word
 majorP = digitsP <* char '.'
@@ -743,8 +795,17 @@ minorP = majorP
 patchP :: Parsec Void Text Word
 patchP = digitsP
 
+releaseP :: Parsec Void Text Release
+releaseP = char '-' *> fmap Release (chunkP `PC.sepBy1` char '.')
+
+chunkP :: Parsec Void Text Chunk
+chunkP = undefined
+
+chunkWithoutHyphensP :: Parsec Void Text Chunk
+chunkWithoutHyphensP = undefined
+
 preRel :: Parsec Void Text [VChunk]
-preRel = (char '-' *> chunks) <|> pure []
+preRel = (char '-' *> vchunks) <|> pure []
 
 metaData :: Parsec Void Text Text
 metaData = do
@@ -757,8 +818,8 @@ metaData = do
 chunksNE :: Parsec Void Text (NonEmpty VChunk)
 chunksNE = chunkWith unit'  `PC.sepBy1` char '.'
 
-chunks :: Parsec Void Text [VChunk]
-chunks = chunkWith unit `sepBy` char '.'
+vchunks :: Parsec Void Text [VChunk]
+vchunks = chunkWith unit `sepBy` char '.'
 
 -- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
 -- since a version like @1.000.1@ would parse as @1.0.1@.
@@ -811,10 +872,13 @@ version' :: Parsec Void Text Version
 version' = L.lexeme space version''
 
 version'' :: Parsec Void Text Version
-version'' = Version <$> optional (try epochP) <*> chunksNE <*> preRel <*> optional metaData
+version'' = Version <$> optional (try epochP) <*> chunksP <*> optional releaseP <*> optional metaData
 
 epochP :: Parsec Void Text Word
 epochP = read <$> (some digitChar <* char ':')
+
+chunksP :: Parsec Void Text Chunks
+chunksP = Chunks <$> chunkWithoutHyphensP `PC.sepBy1` char '.'
 
 -- | Parse a (Complex) `Mess`, as defined above.
 mess :: Text -> Either ParsingError Mess
@@ -863,8 +927,8 @@ prettySemVer :: SemVer -> Text
 prettySemVer (SemVer ma mi pa pr me) = mconcat $ ver <> pr' <> me'
   where
     ver = intersperse "." [ showt ma, showt mi, showt pa ]
-    pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
-    me' = maybe [] (\m -> ["+",m]) me
+    pr' = maybe [] (\m -> ["-", prettyRelease m]) pr
+    me' = maybe [] (\m -> ["+", m]) me
 
 -- | Convert a `PVP` back to its textual representation.
 prettyPVP :: PVP -> Text
@@ -872,12 +936,12 @@ prettyPVP (PVP (m :| rs)) = T.intercalate "." . map showt $ m : rs
 
 -- | Convert a `Version` back to its textual representation.
 prettyVer :: Version -> Text
-prettyVer (Version ep cs pr me) = ep' <> mconcat (ver <> pr' <> me')
+prettyVer (Version ep cs pr me) = mconcat $ ep' <> [ver] <> pr' <> me'
   where
-    ver = intersperse "." . chunksAsT $ NEL.toList cs
-    me' = maybe [] (\m -> ["+",m]) me
-    pr' = foldable [] ("-" :) $ intersperse "." (chunksAsT pr)
-    ep' = maybe "" (\e -> showt e <> ":") ep
+    ver = prettyChunks cs
+    me' = maybe [] (\m -> ["+", m]) me
+    pr' = maybe [] (\m -> ["-", prettyRelease m]) pr
+    ep' = maybe [] (\e -> [showt e, ":"]) ep
 
 -- | Convert a `Mess` back to its textual representation.
 prettyMess :: Mess -> Text
@@ -887,6 +951,12 @@ prettyMess (Mess t m) = case m of
   where
     t' :: Text
     t' = fold . NEL.intersperse "." $ NEL.map mchunkText t
+
+prettyChunks :: Chunks -> Text
+prettyChunks = undefined
+
+prettyRelease :: Release -> Text
+prettyRelease = undefined
 
 chunksAsT :: Functor t => t VChunk -> t Text
 chunksAsT = fmap (foldMap f)
@@ -902,6 +972,9 @@ chunksAsM = fmap f
     f (Digits i :| [])        = MDigit i $ showt i
     f (Str "r" :| [Digits i]) = MRev i . T.cons 'r' $ showt i
     f vc                      = MPlain . T.concat $ chunksAsT [vc]
+
+--------------------------------------------------------------------------------
+-- Utilities
 
 -- | Analogous to `maybe` and `either`. If a given Foldable is empty,
 -- a default value is returned. Else, a function is applied to that Foldable.
@@ -922,3 +995,11 @@ showt = T.pack . show
 hush :: Either a b -> Maybe b
 hush (Left _)  = Nothing
 hush (Right b) = Just b
+
+data These a b = This a | That b | Both a b
+
+zipLongest :: [a] -> [b] -> [These a b]
+zipLongest [] []         = []
+zipLongest (a:as) (b:bs) = Both a b : zipLongest as bs
+zipLongest (a:as) []     = This a : zipLongest as []
+zipLongest [] (b:bs)     = That b : zipLongest [] bs
