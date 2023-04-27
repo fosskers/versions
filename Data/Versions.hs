@@ -363,22 +363,7 @@ instance Ord SemVer where
     case compare (ma,mi,pa) (ma',mi',pa') of
      LT -> LT
      GT -> GT
-     EQ -> case (pr,pr') of
-            ([],[]) -> EQ
-            ([],_)  -> GT
-            (_,[])  -> LT
-            _       -> compare pr pr'
-
-instance Semigroup SemVer where
-  SemVer mj mn pa p m <> SemVer mj' mn' pa' p' m' =
-    SemVer (mj + mj') (mn + mn') (pa + pa') (p ++ p') (m <> m')
-
-instance Monoid SemVer where
-  mempty = SemVer 0 0 0 [] Nothing
-
-#if !MIN_VERSION_base(4,11,0)
-  mappend = (<>)
-#endif
+     EQ -> compare pr pr'
 
 instance Semantic SemVer where
   major f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
@@ -405,19 +390,6 @@ instance Semantic SemVer where
 data VUnit = Digits Word | Str Text
   deriving stock (Eq, Show, Read, Ord, Generic)
   deriving anyclass (NFData, Hashable)
-
-instance Semigroup VUnit where
-  Digits n <> Digits m = Digits $ n + m
-  Str t    <> Str s    = Str $ t <> s
-  Digits n <> _        = Digits n
-  _        <> Digits n = Digits n
-
-instance Monoid VUnit where
-  mempty = Str ""
-
-#if !MIN_VERSION_base(4,11,0)
-  mappend = (<>)
-#endif
 
 -- | Smart constructor for a `VUnit` made of digits.
 digits :: Word -> VUnit
@@ -466,20 +438,6 @@ type VChunk = NonEmpty VUnit
 newtype PVP = PVP { _pComponents :: NonEmpty Word }
   deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (NFData, Hashable)
-
-instance Semigroup PVP where
-  PVP (m :| r) <> PVP (m' :| r') = PVP $ (m + m') :| f r r'
-    where
-      f a []          = a
-      f [] b          = b
-      f (a:as) (b:bs) = (a + b) : f as bs
-
-instance Monoid PVP where
-  mempty = PVP (0 :| [])
-
-#if !MIN_VERSION_base(4,11,0)
-  mappend = (<>)
-#endif
 
 instance Semantic PVP where
   major f (PVP (m :| rs)) = (\ma -> PVP $ ma :| rs) <$> f m
