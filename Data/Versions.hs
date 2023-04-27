@@ -7,7 +7,7 @@
 
 -- |
 -- Module    : Data.Versions
--- Copyright : (c) Colin Woodbury, 2015 - 2022
+-- Copyright : (c) Colin Woodbury, 2015 - 2023
 -- License   : BSD3
 -- Maintainer: Colin Woodbury <colin@fosskers.ca>
 --
