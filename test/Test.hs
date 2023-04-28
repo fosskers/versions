@@ -28,13 +28,14 @@ import           Text.Printf (printf)
 instance Arbitrary SemVer where
   arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> fmap Just releaseG <*> pure Nothing
 
--- | Sane generation of VChunks.
 chunksG :: Gen Chunks
--- chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
-chunksG = undefined
+chunksG = fmap (Chunks . NEL.fromList) . resize 10 $ listOf1 arbitrary
 
 releaseG :: Gen Release
-releaseG = undefined
+releaseG = fmap (Release . NEL.fromList) . resize 10 $ listOf1 arbitrary
+
+instance Arbitrary Chunk where
+  arbitrary = frequency [ (1, Numeric . (+1) <$> arbitrary) ]
 
 -- chunksNE :: Gen (NEL.NonEmpty VChunk)
 -- chunksNE = NEL.fromList <$> chunks

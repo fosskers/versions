@@ -802,7 +802,7 @@ releaseP :: Parsec Void Text Release
 releaseP = char '-' *> fmap Release (chunkP `PC.sepBy1` char '.')
 
 chunkP :: Parsec Void Text Chunk
-chunkP = alphanumP <|> numericP
+chunkP = try alphanumP <|> numericP
 
 alphanumP :: Parsec Void Text Chunk
 alphanumP = do
@@ -825,7 +825,7 @@ numericP :: Parsec Void Text Chunk
 numericP = Numeric <$> unsignedP
 
 chunkWithoutHyphensP :: Parsec Void Text Chunk
-chunkWithoutHyphensP = alphanumWithoutHyphensP <|> numericP
+chunkWithoutHyphensP = try alphanumWithoutHyphensP <|> numericP
 
 preRel :: Parsec Void Text [VChunk]
 preRel = (char '-' *> vchunks) <|> pure []
