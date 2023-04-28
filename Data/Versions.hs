@@ -973,10 +973,14 @@ prettyMess (Mess t m) = case m of
     t' = fold . NEL.intersperse "." $ NEL.map mchunkText t
 
 prettyChunks :: Chunks -> Text
-prettyChunks = undefined
+prettyChunks (Chunks cs) = T.intercalate "." . map prettyChunk $ NEL.toList cs
 
 prettyRelease :: Release -> Text
-prettyRelease = undefined
+prettyRelease (Release cs) = T.intercalate "." . map prettyChunk $ NEL.toList cs
+
+prettyChunk :: Chunk -> Text
+prettyChunk (Numeric n)  = showt n
+prettyChunk (Alphanum s) = s
 
 chunksAsT :: Functor t => t VChunk -> t Text
 chunksAsT = fmap (foldMap f)
