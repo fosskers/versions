@@ -74,7 +74,7 @@ module Data.Versions
 
 import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
-import           Control.Monad (void)
+import           Control.Monad (unless, void, when)
 import           Data.Bool (bool)
 import           Data.Char (isAlpha, isAlphaNum)
 import           Data.Foldable (fold)
@@ -458,7 +458,7 @@ cmpLenient a@(Alphanum _) (Numeric n) =
 -- letters.
 singleDigitLenient :: Chunk -> Maybe Word
 singleDigitLenient (Numeric n)  = Just n
-singleDigitLenient (Alphanum s) = hush $ parse digitsP "Single Digit Lenient" s
+singleDigitLenient (Alphanum s) = hush $ parse unsignedP "Single Digit Lenient" s
 
 -- | A single unit of a Version. May be digits or a string of characters. Groups
 -- of these are called `VChunk`s, and are the identifiers separated by periods
@@ -783,26 +783,46 @@ semver'' :: Parsec Void Text SemVer
 semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> optional releaseP <*> optional metaData
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
-digitsP :: Parsec Void Text Word
-digitsP = (0 <$ char '0') <|> decimal
+unsignedP :: Parsec Void Text Word
+unsignedP = (0 <$ char '0') <|> decimal
 
 majorP :: Parsec Void Text Word
-majorP = digitsP <* char '.'
+majorP = unsignedP <* char '.'
 
 minorP :: Parsec Void Text Word
 minorP = majorP
 
 patchP :: Parsec Void Text Word
-patchP = digitsP
+patchP = unsignedP
 
 releaseP :: Parsec Void Text Release
 releaseP = char '-' *> fmap Release (chunkP `PC.sepBy1` char '.')
 
 chunkP :: Parsec Void Text Chunk
-chunkP = undefined
+chunkP = alphanumP <|> numericP
+
+alphanumP :: Parsec Void Text Chunk
+alphanumP = do
+  ids <- takeWhile1P (Just "Hyphenated Alphanums") (\c -> isAlphaNum c || c == '-')
+  -- It's okay for this to `fail` like this, since this fail is caught higher up
+  -- in `chunkP` and another parser which should be guaranteed to succeed is
+  -- called. It's guaranteed since by this point we /did/ parse something, but
+  -- the test below proves it contains only numbers. Therefore the fallback call
+  -- to `numericP` should succeed.
+  unless (T.any (\c -> isAlpha c || c == '-') ids) $ fail "Only numeric!"
+  pure $ Alphanum ids
+
+alphanumWithoutHyphensP :: Parsec Void Text Chunk
+alphanumWithoutHyphensP = do
+  ids <- takeWhile1P (Just "Unhyphenated Alphanums") isAlphaNum
+  unless (T.any isAlpha ids) $ fail "Only numeric!"
+  pure $ Alphanum ids
+
+numericP :: Parsec Void Text Chunk
+numericP = Numeric <$> unsignedP
 
 chunkWithoutHyphensP :: Parsec Void Text Chunk
-chunkWithoutHyphensP = undefined
+chunkWithoutHyphensP = alphanumWithoutHyphensP <|> numericP
 
 preRel :: Parsec Void Text [VChunk]
 preRel = (char '-' *> vchunks) <|> pure []
