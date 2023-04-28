@@ -9,6 +9,7 @@ import           Data.Char (chr)
 import           Data.Either (fromRight, isLeft)
 import           Data.Foldable (fold)
 import           Data.List (groupBy)
+import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import           Data.Versions
@@ -25,20 +26,24 @@ import           Text.Printf (printf)
 ---
 
 instance Arbitrary SemVer where
-  arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> chunks <*> pure Nothing
+  arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> fmap Just releaseG <*> pure Nothing
 
 -- | Sane generation of VChunks.
-chunks :: Gen [VChunk]
-chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
+chunksG :: Gen Chunks
+-- chunks = resize 10 . listOf1 . fmap simplify . resize 10 $ listOf1 arbitrary
+chunksG = undefined
 
-chunksNE :: Gen (NEL.NonEmpty VChunk)
-chunksNE = NEL.fromList <$> chunks
+releaseG :: Gen Release
+releaseG = undefined
 
-simplify :: [VUnit] -> NEL.NonEmpty VUnit
-simplify = NEL.fromList . map fold . groupBy f
-  where f (Digits _) (Digits _) = True
-        f (Str _) (Str _)       = True
-        f _ _                   = False
+-- chunksNE :: Gen (NEL.NonEmpty VChunk)
+-- chunksNE = NEL.fromList <$> chunks
+
+-- simplify :: [VUnit] -> NEL.NonEmpty VUnit
+-- simplify = NEL.fromList . map fold . groupBy f
+--   where f (Digits _) (Digits _) = True
+--         f (Str _) (Str _)       = True
+--         f _ _                   = False
 
 instance Arbitrary VUnit where
   arbitrary = frequency [ (1, Digits . (+ 1) <$> arbitrary) , (1, s) ]
@@ -51,7 +56,7 @@ instance Arbitrary Letter where
   arbitrary = Letter . chr <$> choose (97, 122)
 
 instance Arbitrary Version where
-  arbitrary = Version <$> arbitrary <*> chunksNE <*> chunks <*> pure Nothing
+  arbitrary = Version <$> arbitrary <*> chunksG <*> fmap Just releaseG <*> pure Nothing
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
@@ -123,11 +128,10 @@ suite = testGroup "Tests"
          $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
         zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b) semverOrd (tail semverOrd)
       , testGroup "Whitespace Handling"
-        [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 [[Digits 1]] Nothing)
+        [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 (Just . Release $ Numeric 1 :| []) Nothing)
         ]
       , testGroup "Zero Handling"
-        [ testCase "2.2.1-b05" $ semver "2.2.1-b05" @?= Right (SemVer 2 2 1 [[Str "b", Digits 0, Digits 5]] Nothing)
-
+        [ testCase "2.2.1-b05" $ semver "2.2.1-b05" @?= Right (SemVer 2 2 1 (Just . Release $ Alphanum "b05" :| []) Nothing)
         ]
       ]
     , testGroup "(Haskell) PVP"
@@ -222,7 +226,7 @@ suite = testGroup "Tests"
       ]
     , testGroup "Megaparsec Behaviour"
       [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"
-      , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right(Ideal $ SemVer 3 2 14 [[Digits 1, Str "-x", Digits 86]] Nothing)
+      , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right (Ideal $ SemVer 3 2 14 (Just . Release $ Alphanum "1-x86" :| []) Nothing)
       ]
     ]
   ]
@@ -284,8 +288,8 @@ isMess _           = False
 
 incPatch :: Assertion
 incPatch = (v1 & patch %~ (+ 1)) @?= v2
-  where v1 = Ideal $ SemVer 1 2 3 [] Nothing
-        v2 = Ideal $ SemVer 1 2 4 [] Nothing
+  where v1 = Ideal $ SemVer 1 2 3 Nothing Nothing
+        v2 = Ideal $ SemVer 1 2 4 Nothing Nothing
 
 incFromT :: Assertion
 incFromT = (("1.2.3" :: T.Text) & patch %~ (+ 1)) @?= "1.2.4"

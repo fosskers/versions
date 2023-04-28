@@ -44,6 +44,9 @@ module Data.Versions
   , PVP(..)
   , Version(..)
   , Mess(..), messMajor, messMinor, messPatch, messPatchChunk
+  , Release(..)
+  , Chunks(..)
+  , Chunk(..)
   , MChunk(..)
   , VUnit(..), digits, str
   , VChunk
