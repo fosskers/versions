@@ -48,8 +48,6 @@ module Data.Versions
   , Chunks(..)
   , Chunk(..)
   , MChunk(..)
-  , VUnit(..), digits, str
-  , VChunk
   , VSep(..)
     -- * Parsing Versions
   , ParsingError
@@ -71,14 +69,11 @@ module Data.Versions
   , _Ideal, _General, _Complex
     -- ** (General) Version Lenses
   , epoch
-    -- ** Misc. Lenses / Traversals
-  , _Digits, _Str
   ) where
 
 import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
 import           Control.Monad (unless, void)
-import           Data.Bool (bool)
 import           Data.Char (isAlpha, isAlphaNum)
 import           Data.Foldable (fold)
 import           Data.Hashable (Hashable)
@@ -222,7 +217,7 @@ semverAndMess s@(SemVer ma mi pa _ _) m = case compare ma <$> messMajor m of
       Just EQ -> fallback
       Nothing -> case messPatchChunk m of
         Nothing             -> fallback
-        Just (Digits pa':|_) -> case compare pa pa' of
+        Just (Numeric pa') -> case compare pa pa' of
           LT -> LT
           GT -> GT
           EQ -> GT  -- This follows semver's rule!
@@ -502,37 +497,6 @@ singleDigitLenient :: Chunk -> Maybe Word
 singleDigitLenient (Numeric n)  = Just n
 singleDigitLenient (Alphanum s) = hush $ parse unsignedP "Single Digit Lenient" s
 
--- | A single unit of a Version. May be digits or a string of characters. Groups
--- of these are called `VChunk`s, and are the identifiers separated by periods
--- in the source.
-data VUnit = Digits Word | Str Text
-  deriving stock (Eq, Show, Read, Ord, Generic)
-  deriving anyclass (NFData, Hashable)
-
--- | Smart constructor for a `VUnit` made of digits.
-digits :: Word -> VUnit
-digits = Digits
-
--- | Smart constructor for a `VUnit` made of letters.
-str :: Text -> Maybe VUnit
-str t = bool Nothing (Just $ Str t) $ T.all isAlpha t
-
--- | Possibly traverse the inner digit value of a `VUnit`.
-_Digits :: Traversal' VUnit Word
-_Digits f (Digits i) = Digits <$> f i
-_Digits _ v          = pure v
-{-# INLINE _Digits #-}
-
--- | Possibly traverse the inner text of a `VUnit`.
-_Str :: Traversal' VUnit Text
-_Str f (Str t) = Str . (\t' -> bool t t' (T.all isAlpha t')) <$> f t
-_Str _ v       = pure v
-{-# INLINE _Str #-}
-
--- | A logical unit of a version number. Can consist of multiple letters
--- and numbers.
-type VChunk = NonEmpty VUnit
-
 --------------------------------------------------------------------------------
 -- (Haskell) PVP
 
@@ -740,11 +704,11 @@ messPatch _                                  = Nothing
 
 -- | Okay, fine, say `messPatch` couldn't find a nice value. But some `Mess`es
 -- have a "proper" patch-plus-release-candidate value in their patch position,
--- which is parsable as a `VChunk`.
+-- which is parsable as a `Chunk`.
 --
 -- Example: @1.6.0a+2014+m872b87e73dfb-1@ We should be able to extract @0a@ safely.
-messPatchChunk :: Mess -> Maybe VChunk
-messPatchChunk (Mess (_ :| _ : MPlain p : _) _) = hush $ parse (chunkWith unit) "Chunk" p
+messPatchChunk :: Mess -> Maybe Chunk
+messPatchChunk (Mess (_ :| _ : MPlain p : _) _) = hush $ parse chunkP "Chunk" p
 messPatchChunk _                                = Nothing
 
 instance Ord Mess where
@@ -866,9 +830,6 @@ numericP = Numeric <$> unsignedP
 chunkWithoutHyphensP :: Parsec Void Text Chunk
 chunkWithoutHyphensP = try alphanumWithoutHyphensP <|> numericP
 
-preRel :: Parsec Void Text [VChunk]
-preRel = (char '-' *> vchunks) <|> pure []
-
 metaData :: Parsec Void Text Text
 metaData = do
   void $ char '+'
@@ -876,46 +837,6 @@ metaData = do
   where
     section :: Parsec Void Text Text
     section = takeWhile1P (Just "Metadata char") (\c -> isAlphaNum c || c == '-')
-
-chunksNE :: Parsec Void Text (NonEmpty VChunk)
-chunksNE = chunkWith unit'  `PC.sepBy1` char '.'
-
-vchunks :: Parsec Void Text [VChunk]
-vchunks = chunkWith unit `sepBy` char '.'
-
--- | Handling @0@ is a bit tricky. We can't allow runs of zeros in a chunk,
--- since a version like @1.000.1@ would parse as @1.0.1@.
-chunkWith :: Parsec Void Text VUnit -> Parsec Void Text VChunk
-chunkWith u = try zeroWithLetters <|> oneZero <|> PC.some u
-  where
-    oneZero :: Parsec Void Text (NonEmpty VUnit)
-    oneZero = (Digits 0 :| []) <$ single '0'
-
-    zeroWithLetters :: Parsec Void Text (NonEmpty VUnit)
-    zeroWithLetters = do
-      z <- Digits 0 <$ single '0'
-      s <- PC.some sunit
-      c <- optional (chunkWith u)
-      case c of
-        Nothing -> pure $ NEL.cons z s
-        Just c' -> pure $ NEL.cons z s <> c'
-
-unit :: Parsec Void Text VUnit
-unit = iunit <|> sunit
-
-unit' :: Parsec Void Text VUnit
-unit' = iunit <|> sunit'
-
-iunit :: Parsec Void Text VUnit
-iunit = Digits <$> ((0 <$ single '0') <|> (read <$> some digitChar))
-
-sunit :: Parsec Void Text VUnit
-sunit = Str . T.pack <$> some (letterChar <|> single '-')
-
--- | Same as `sunit`, but don't allow hyphens. Intended for the main body of
--- `Version`.
-sunit' :: Parsec Void Text VUnit
-sunit' = Str . T.pack <$> some letterChar
 
 -- | Parse a (Haskell) `PVP`, as defined above.
 pvp :: Text -> Either ParsingError PVP
@@ -1024,29 +945,8 @@ prettyChunk :: Chunk -> Text
 prettyChunk (Numeric n)  = showt n
 prettyChunk (Alphanum s) = s
 
-chunksAsT :: Functor t => t VChunk -> t Text
-chunksAsT = fmap (foldMap f)
-  where
-    f :: VUnit -> Text
-    f (Digits i) = showt i
-    f (Str s)    = s
-
-chunksAsM :: Functor t => t VChunk -> t MChunk
-chunksAsM = fmap f
-  where
-    f :: VChunk -> MChunk
-    f (Digits i :| [])        = MDigit i $ showt i
-    f (Str "r" :| [Digits i]) = MRev i . T.cons 'r' $ showt i
-    f vc                      = MPlain . T.concat $ chunksAsT [vc]
-
 --------------------------------------------------------------------------------
 -- Utilities
-
--- | Analogous to `maybe` and `either`. If a given Foldable is empty,
--- a default value is returned. Else, a function is applied to that Foldable.
-foldable :: Foldable f => f b -> (f a -> f b) -> f a -> f b
-foldable d g f | null f    = d
-               | otherwise = g f
 
 -- | Flip an Ordering.
 opposite :: Ordering -> Ordering

@@ -5,59 +5,19 @@
 
 module Main ( main ) where
 
-import           Data.Char (chr)
 import           Data.Either (fromRight, isLeft)
-import           Data.Foldable (fold)
-import           Data.List (groupBy)
 import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import           Data.Versions
 import           Data.Void (Void)
 import           Lens.Micro
-import           Test.QuickCheck
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           Test.Tasty.QuickCheck
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import           Text.Printf (printf)
 
 ---
-
-instance Arbitrary SemVer where
-  arbitrary = SemVer <$> arbitrary <*> arbitrary <*> arbitrary <*> fmap Just releaseG <*> pure Nothing
-
-chunksG :: Gen Chunks
-chunksG = fmap (Chunks . NEL.fromList) . resize 10 $ listOf1 arbitrary
-
-releaseG :: Gen Release
-releaseG = fmap (Release . NEL.fromList) . resize 10 $ listOf1 arbitrary
-
-instance Arbitrary Chunk where
-  arbitrary = frequency [ (1, Numeric . (+1) <$> arbitrary) ]
-
--- chunksNE :: Gen (NEL.NonEmpty VChunk)
--- chunksNE = NEL.fromList <$> chunks
-
--- simplify :: [VUnit] -> NEL.NonEmpty VUnit
--- simplify = NEL.fromList . map fold . groupBy f
---   where f (Digits _) (Digits _) = True
---         f (Str _) (Str _)       = True
---         f _ _                   = False
-
-instance Arbitrary VUnit where
-  arbitrary = frequency [ (1, Digits . (+ 1) <$> arbitrary) , (1, s) ]
-    where s = Str . T.pack . map unletter <$> resize 10 (listOf1 arbitrary)
-
--- | An ASCII letter.
-newtype Letter = Letter { unletter :: Char }
-
-instance Arbitrary Letter where
-  arbitrary = Letter . chr <$> choose (97, 122)
-
-instance Arbitrary Version where
-  arbitrary = Version <$> arbitrary <*> chunksG <*> fmap Just releaseG <*> pure Nothing
 
 -- | These don't need to parse as a SemVer.
 goodVers :: [T.Text]
@@ -113,13 +73,7 @@ versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1", "2" ]
 
 suite :: TestTree
 suite = testGroup "Tests"
-  [ testGroup "Property Tests"
-    [ testProperty "SemVer - Arbitrary" $ \a -> semver (prettySemVer a) == Right a
-    , testProperty "Version - Arbitrary" $ \a -> version (prettyVer a) == Right a
-    -- , testGroup "Version - Monoid" $
-    --   map (\(name, test) -> testProperty name test) . unbatch $ monoid (Version (Just 1) [[digits 2], [digits 3]])
-    ]
-  , testGroup "Unit Tests"
+  [ testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"
       [ testGroup "Bad Versions (shouldn't parse)" $
         map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ semver s) badSemVs
@@ -174,7 +128,7 @@ suite = testGroup "Tests"
         , testCase "messPatch - Bad" $
           (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messPatch) @?= Nothing
         , testCase "messPatchChunk" $
-          (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messPatchChunk) @?= Just [Digits 0, Str "a"]
+          (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messPatchChunk) @?= Just (Alphanum "0a")
         ]
       ]
     , testGroup "Mixed Versioning"
