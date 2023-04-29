@@ -77,7 +77,7 @@ module Data.Versions
 
 import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
-import           Control.Monad (unless, void, when)
+import           Control.Monad (unless, void)
 import           Data.Bool (bool)
 import           Data.Char (isAlpha, isAlphaNum)
 import           Data.Foldable (fold)
@@ -132,8 +132,8 @@ instance Ord Versioning where
   compare (Ideal s)     (Ideal s')   = compare s s'
   compare (General v)   (General v') = compare v v'
   compare (Complex m)   (Complex m') = compare m m'
-  compare (Ideal s)     (General v)  = compare (vFromS s) v
-  compare (General v)   (Ideal s)    = opposite $ compare (vFromS s) v
+  compare (Ideal s)     (General v)  = semverAndVer s v
+  compare (General v)   (Ideal s)    = opposite $ semverAndVer s v
   compare (General v)   (Complex m)  = compare (mFromV v) m
   compare (Complex m)   (General v)  = opposite $ compare (mFromV v) m
   compare (Ideal s)     (Complex m)  = semverAndMess s m
@@ -165,6 +165,41 @@ mFromV (Version me (Chunks v) r _) = case me of
     g (Release cs) = (VHyphen, Mess ms Nothing)
       where
         ms = NEL.map toMChunk cs
+
+semverAndVer :: SemVer -> Version -> Ordering
+-- A `Version` with a non-zero epoch value is automatically greater than any
+-- `SemVer`.
+semverAndVer _ (Version (Just e) _ _ _) | e > 0 = LT
+semverAndVer (SemVer ma mi pa sr _) (Version _ (Chunks vc) vr _) =
+  case compare ma <$> (nth 0 vc' >>= singleDigitLenient) of
+    Nothing -> GT
+    Just GT -> GT
+    Just LT -> LT
+    Just EQ -> case compare mi <$> (nth 1 vc' >>= singleDigitLenient) of
+      Nothing -> GT
+      Just GT -> GT
+      Just LT -> LT
+      Just EQ -> case compare pa <$> (nth 2 vc' >>= singleDigitLenient) of
+        Nothing -> GT
+        Just GT -> GT
+        Just LT -> LT
+        -- By thes point, the major/minor/patch positions have all been equal.
+        -- If there is a fourth position, its type, not its value, will
+        -- determine which overall version is greater.
+        Just EQ -> case nth 3 vc' of
+          -- 1.2.3 > 1.2.3.git
+          Just (Alphanum _) -> GT
+          -- 1.2.3 < 1.2.3.0
+          Just (Numeric _)  -> LT
+          Nothing           -> compare sr vr
+ where
+   vc' :: [Chunk]
+   vc' = NEL.toList vc
+
+   nth :: Int -> [Chunk] -> Maybe Chunk
+   nth _ []     = Nothing
+   nth 0 (c:_)  = Just c
+   nth n (_:cs) = nth (n - 1) cs
 
 -- | Special logic for when semver-like values can be extracted from a `Mess`.
 -- This avoids having to "downcast" the `SemVer` into a `Mess` before comparing,
