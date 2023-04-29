@@ -1,6 +1,6 @@
 # Changelog
 
-## 6.0.0 (2024-04-29)
+## 6.0.0 (2023-04-29)
 
 A number of type changes have been made to improve parsing and comparison logic.
 Doing so fixed several bugs and made the code cleaner overall.
