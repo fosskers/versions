@@ -1,10 +1,34 @@
 # Changelog
 
-## Unreleased
+## 6.0.0 (2024-04-29)
+
+A number of type changes have been made to improve parsing and comparison logic.
+Doing so fixed several bugs and made the code cleaner overall.
+
+If you're just doing basic parsing and comparisons and not actually inspecting
+the types themselves, you shouldn't notice a difference.
+
+#### Added
+
+- New types `Release`, `Chunks`, and `Chunk`.
 
 #### Changed
 
+- Both `SemVer` and `Version` now contain a better-behaving `Release` type for their prerelease info.
+- Similarly, `Version` now also has a better-behaving `Chunks` type for its main
+  version number sections.
+- The `release` traversal now yields a `Maybe Release`.
 - Versions with `~` in their metadata will now parse as a `Mess`. Example: `12.0.0-3ubuntu1~20.04.5`
+
+#### Removed
+
+- The various `Semigroup` instances. Adding version numbers together is a
+  nonsensical operation and should never have been added in the first place.
+- The `VChunk` and `VUnit` types and their associated functions.
+
+#### Fixed
+
+- Leading zeroes are handled a little better in `SemVer` pre-release data.
 
 ## 5.0.5 (2023-03-23)
 
