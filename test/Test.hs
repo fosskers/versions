@@ -89,6 +89,8 @@ goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
             , "1.0.0-x-y-z.-"
             -- Weird metadata
             , "1.0.0-alpha+001", "1.0.0+21AF26D3---117B344092BD"
+            -- Zeroes
+            , "1.2.2-00a"
             ]
 
 -- | The exact example from `http://semver.org`
