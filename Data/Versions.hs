@@ -363,7 +363,11 @@ instance Ord SemVer where
     case compare (ma,mi,pa) (ma',mi',pa') of
      LT -> LT
      GT -> GT
-     EQ -> compare pr pr'
+     EQ -> case (pr, pr') of
+       (Nothing, Nothing) -> EQ
+       (Nothing, _)       -> GT
+       (_, Nothing)       -> LT
+       (Just ap, Just bp) -> compare ap bp
 
 instance Semantic SemVer where
   major f sv = fmap (\ma -> sv { _svMajor = ma }) (f $ _svMajor sv)
