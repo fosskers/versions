@@ -215,13 +215,18 @@ semverAndMess s@(SemVer ma mi pa _ _) m = case compare ma <$> messMajor m of
       -- will by definition have more to it, meaning that
       -- it's more likely to be newer, despite its poor shape.
       Just EQ -> fallback
-      Nothing -> case messPatchChunk m of
-        Nothing             -> fallback
-        Just (Numeric pa') -> case compare pa pa' of
+      -- Even if we weren't able to extract a standalone patch number, we might
+      -- still be able to find a number at the head of the `Chunk` in that
+      -- position.
+      Nothing -> case messPatchChunk m >>= singleDigitLenient of
+        -- We were very close, but in the end the `Mess` had a nonsensical value
+        -- in its patch position.
+        Nothing  -> fallback
+        Just pa' -> case compare pa pa' of
           LT -> LT
           GT -> GT
-          EQ -> GT  -- This follows semver's rule!
-        Just _ -> fallback
+          -- This follows semver's rule that pre-releases have lower precedence.
+          EQ -> GT
   where
     fallback :: Ordering
     fallback = compare (General $ vFromS s) (Complex m)
