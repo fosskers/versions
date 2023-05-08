@@ -148,7 +148,7 @@ mFromV :: Version -> Mess
 mFromV (Version me (Chunks v) r _) = case me of
   Nothing -> f
   Just e  ->
-    let cs = NEL.singleton . MDigit e $ showt e
+    let cs = (:| []) . MDigit e $ showt e
     in Mess cs $ Just (VColon, f)
   where
     f :: Mess
