@@ -19,9 +19,6 @@ jobs:
             "lts-18.28",
             "lts-16.31",
             "lts-14.27",
-            "lts-12.26",
-            "lts-11.22",
-            "lts-9.21",
           ]
         include:
           - resolver: "lts-20.20"
@@ -47,21 +44,6 @@ jobs:
           - resolver: "lts-14.27"
             os: ubuntu-latest
             ghc: "8.6.5"
-            cabal: latest
-            stack: latest
-          - resolver: "lts-12.26"
-            os: ubuntu-latest
-            ghc: "8.4.4"
-            cabal: latest
-            stack: latest
-          - resolver: "lts-11.22"
-            os: ubuntu-latest
-            ghc: "8.2.2"
-            cabal: latest
-            stack: latest
-          - resolver: "lts-9.21"
-            os: ubuntu-latest
-            ghc: "8.0.2"
             cabal: latest
             stack: latest
 
