@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.1 (2023-05-08)
+
+#### Fixed
+
+- Restored the ability to compile with GHC versions earlier than 9.
+
 ## 6.0.0 (2023-04-29)
 
 A number of type changes have been made to improve parsing and comparison logic.
