@@ -14,16 +14,20 @@ jobs:
       matrix:
         resolver:
           [
-            "lts-20.20",
+            "lts-21.15",
+            "lts-20.26",
             "lts-19.33",
             "lts-18.28",
-            "lts-16.31",
-            "lts-14.27",
           ]
         include:
-          - resolver: "lts-20.20"
+          - resolver: "lts-21.15"
             os: ubuntu-latest
-            ghc: "9.2.7"
+            ghc: "9.4.7"
+            cabal: latest
+            stack: latest
+          - resolver: "lts-20.26"
+            os: ubuntu-latest
+            ghc: "9.2.8"
             cabal: latest
             stack: latest
           - resolver: "lts-19.33"
@@ -34,16 +38,6 @@ jobs:
           - resolver: "lts-18.28"
             os: ubuntu-latest
             ghc: "8.10.7"
-            cabal: latest
-            stack: latest
-          - resolver: "lts-16.31"
-            os: ubuntu-latest
-            ghc: "8.8.4"
-            cabal: latest
-            stack: latest
-          - resolver: "lts-14.27"
-            os: ubuntu-latest
-            ghc: "8.6.5"
             cabal: latest
             stack: latest
 
