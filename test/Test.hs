@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -10,12 +11,14 @@ import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Text as T
 import           Data.Versions
 import           Data.Void (Void)
+import           Language.Haskell.TH (recover)
 import           Lens.Micro
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import           Text.Printf (printf)
+import           TH (thVer)
 
 ---
 
@@ -180,6 +183,12 @@ suite = testGroup "Tests"
       [ testCase "SemVer - Increment Patch" incPatch
       , testCase "SemVer - Increment Patch from Text" incFromT
       , testCase "SemVer - Get patches" patches
+      ]
+    , testGroup "Template Haskell"
+      [ testCase "SemVer"  $ prettyV $(thVer "1.2.3") @?= "1.2.3"
+      , testCase "Version" $ prettyV $(thVer "1.2.3.4") @?= "1.2.3.4"
+      , testCase "Mess"    $ prettyV $(thVer "003.03-3") @?= "003.03-3"
+      , testCase "Failure" $ $(recover [| () |] (thVer "!!!")) @?= ()
       ]
     , testGroup "Megaparsec Behaviour"
       [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"

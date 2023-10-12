@@ -43,6 +43,7 @@ common commons
     , base        >=4.10 && <4.19
     , megaparsec  >=7
     , text        ^>=1.2 || ^>= 2.0
+    , template-haskell >= 2.15
 
 library
   import:          commons
@@ -51,7 +52,6 @@ library
     , deepseq   >=1.4
     , hashable  >=1.2
     , parser-combinators >= 1.0
-    , template-haskell >= 2.15
 
 test-suite versions-test
   import:         commons
@@ -59,6 +59,7 @@ test-suite versions-test
   main-is:        Test.hs
   hs-source-dirs: test
   ghc-options:    -threaded -with-rtsopts=-N
+  other-modules:  TH
   build-depends:
     , microlens         >=0.4
     , tasty             >=0.10.1.2
