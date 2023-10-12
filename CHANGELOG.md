@@ -1,5 +1,27 @@
 # Changelog
 
+## 6.0.2 (2023-10-12)
+
+#### Added
+
+- `Lift` instances for the various types, which allows parsing version numbers
+  at compile time within Template Haskell quotes. Currently there is no exported
+  function that supports this directly, but you could write one like:
+
+```haskell
+-- | Parse a `Versioning` at compile time.
+thVer :: Text -> Q Exp
+thVer nm =
+  case versioning nm of
+    Left err -> fail (errorBundlePretty err)
+    Right v  -> lift v
+```
+
+#### Changed
+
+- Due to the new dependency on `template-haskell`, GHC 8.8 is now the lowest
+  supported compiler version.
+
 ## 6.0.1 (2023-05-08)
 
 #### Fixed
