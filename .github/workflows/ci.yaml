@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     name: CI
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -19,48 +19,26 @@ jobs:
             "lts-19.33",
             "lts-18.28",
             "lts-16.31",
-            "lts-14.27",
           ]
         include:
           - resolver: "lts-21.15"
-            os: ubuntu-latest
             ghc: "9.4.7"
-            cabal: latest
-            stack: latest
           - resolver: "lts-20.26"
-            os: ubuntu-latest
             ghc: "9.2.8"
-            cabal: latest
-            stack: latest
           - resolver: "lts-19.33"
-            os: ubuntu-latest
             ghc: "9.0.2"
-            cabal: latest
-            stack: latest
           - resolver: "lts-18.28"
-            os: ubuntu-latest
             ghc: "8.10.7"
-            cabal: latest
-            stack: latest
           - resolver: "lts-16.31"
-            os: ubuntu-latest
             ghc: "8.8.4"
-            cabal: latest
-            stack: latest
-          - resolver: "lts-14.27"
-            os: ubuntu-latest
-            ghc: "8.6.5"
-            cabal: latest
-            stack: latest
 
     steps:
       - name: Setup GHC
-        uses: haskell/actions/setup@v2
+        uses: haskell-actions/setup@v2
         with:
           ghc-version: ${{ matrix.ghc }}
           enable-stack: true
-          stack-version: ${{ matrix.stack }}
-          cabal-version: ${{ matrix.cabal }}
+          stack-version: 'latest'
 
       - name: Clone project
         uses: actions/checkout@v4
