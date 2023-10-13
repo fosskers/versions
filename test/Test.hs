@@ -197,6 +197,7 @@ suite = testGroup "Tests"
     , testGroup "Megaparsec Behaviour"
       [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"
       , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right (Ideal $ SemVer 3 2 14 (Just . Release $ Alphanum "1-x86" :| []) Nothing)
+      , testCase "Parser State" $ parse pvp'' "parser state" "1.2.3arst" @?= Right ($(thP "1.2.3"), "arst")
       ]
     ]
   ]
@@ -283,3 +284,10 @@ versionGrab = manyTill anySingle (try finished) *> ver
 hush :: Either a b -> Maybe b
 hush (Left _)  = Nothing
 hush (Right b) = Just b
+
+-- | An attempt to squeeze out the remaining parser state.
+pvp'' :: Parsec Void T.Text (PVP, T.Text)
+pvp'' = do
+  v <- pvp'
+  s <- getParserState
+  pure (v, stateInput s)
