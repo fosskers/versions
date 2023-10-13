@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE DeriveLift         #-}
 {-# LANGUAGE DerivingStrategies #-}
@@ -76,6 +77,7 @@ import qualified Control.Applicative.Combinators.NonEmpty as PC
 import           Control.DeepSeq
 import           Control.Monad (unless, void)
 import           Data.Char (isAlpha, isAlphaNum)
+import           Data.Data (Data)
 import           Data.Foldable (fold)
 import           Data.Hashable (Hashable)
 import           Data.List (intersperse)
@@ -99,7 +101,7 @@ import           Text.Megaparsec.Char.Lexer (decimal)
 -- composed. This is useful for specifying custom behaviour for when a certain
 -- parser fails.
 data Versioning = Ideal SemVer | General Version | Complex Mess
-  deriving (Eq, Show, Generic, NFData, Hashable, Lift)
+  deriving (Eq, Show, Generic, NFData, Hashable, Lift, Data)
 
 -- | Short-hand for detecting a `SemVer`.
 isIdeal :: Versioning -> Bool
@@ -386,7 +388,7 @@ data SemVer = SemVer
   , _svPatch  :: !Word
   , _svPreRel :: !(Maybe Release)
   , _svMeta   :: !(Maybe Text) }
-  deriving stock (Show, Generic, Lift)
+  deriving stock (Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 -- | Two SemVers are equal if all fields except metadata are equal.
@@ -427,7 +429,7 @@ instance Semantic SemVer where
 
 -- | `Chunk`s have comparison behaviour according to SemVer's rules for preleases.
 newtype Release = Release (NonEmpty Chunk)
-  deriving stock (Eq, Show, Read, Generic, Lift)
+  deriving stock (Eq, Show, Read, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 instance Ord Release where
@@ -459,7 +461,7 @@ instance Ord Release where
 -- 0rc1-abc3
 -- @
 data Chunk = Numeric Word | Alphanum Text
-  deriving stock (Eq, Show, Read, Generic, Lift)
+  deriving stock (Eq, Show, Read, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 toMChunk :: Chunk -> MChunk
@@ -577,7 +579,7 @@ data Version = Version
   , _vChunks :: !Chunks
   , _vRel    :: !(Maybe Release)
   , _vMeta   :: !(Maybe Text) }
-  deriving stock (Eq, Show, Generic, Lift)
+  deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 -- | Customized. As in SemVer, metadata is ignored for the purpose of
@@ -631,7 +633,7 @@ epoch f v = fmap (\ve -> v { _vEpoch = ve }) (f $ _vEpoch v)
 
 -- | `Chunk`s that have a comparison behaviour specific to `Version`.
 newtype Chunks = Chunks (NonEmpty Chunk)
-  deriving stock (Eq, Show, Generic, Lift)
+  deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 instance Ord Chunks where
@@ -659,7 +661,7 @@ data MChunk
   -- ^ A numeric value preceeded by an @r@, indicating a revision.
   | MPlain Text
   -- ^ Anything else.
-  deriving stock (Eq, Show, Generic, Lift)
+  deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 instance Ord MChunk where
@@ -688,7 +690,7 @@ mchunkText (MPlain t)   = t
 -- internal tests show consistency. `messMajor`, etc., are used internally where
 -- appropriate to enhance accuracy.
 data Mess = Mess !(NonEmpty MChunk) !(Maybe (VSep, Mess))
-  deriving stock (Eq, Show, Generic, Lift)
+  deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 -- | Try to extract the "major" version number from `Mess`, as if it were a
@@ -763,7 +765,7 @@ instance Semantic Mess where
 -- * A plus (+). Stop using this outside of metadata if you are. Example: @10.2+0.93+1-1@
 -- * An underscore (_). Stop using this if you are.
 data VSep = VColon | VHyphen | VPlus | VUnder | VTilde
-  deriving stock (Eq, Show, Generic, Lift)
+  deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 --------------------------------------------------------------------------------
