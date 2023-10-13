@@ -51,6 +51,8 @@ module Data.Versions
   , Chunk(..)
   , MChunk(..)
   , VSep(..)
+    -- ** Conversions
+  , semverToVersion, versionToMess, versionToPvp
     -- * Parsing Versions
   , ParsingError
   , versioning, semver, pvp, version, mess
@@ -128,19 +130,19 @@ isComplex _           = False
 -- and @Complex@ is well defined for the same reason. This implies comparison of
 -- @Ideal@ and @Complex@ is also well-defined.
 instance Ord Versioning where
-  compare (Ideal s)     (Ideal s')   = compare s s'
-  compare (General v)   (General v') = compare v v'
-  compare (Complex m)   (Complex m') = compare m m'
-  compare (Ideal s)     (General v)  = semverAndVer s v
-  compare (General v)   (Ideal s)    = opposite $ semverAndVer s v
-  compare (General v)   (Complex m)  = compare (mFromV v) m
-  compare (Complex m)   (General v)  = opposite $ compare (mFromV v) m
-  compare (Ideal s)     (Complex m)  = semverAndMess s m
-  compare (Complex m)   (Ideal s)    = opposite $ semverAndMess s m
+  compare (Ideal s)   (Ideal s')   = compare s s'
+  compare (General v) (General v') = compare v v'
+  compare (Complex m) (Complex m') = compare m m'
+  compare (Ideal s)   (General v)  = semverAndVer s v
+  compare (General v) (Ideal s)    = opposite $ semverAndVer s v
+  compare (General v) (Complex m)  = compare (versionToMess v) m
+  compare (Complex m) (General v)  = opposite $ compare (versionToMess v) m
+  compare (Ideal s)   (Complex m)  = semverAndMess s m
+  compare (Complex m) (Ideal s)    = opposite $ semverAndMess s m
 
 -- | Convert a `SemVer` to a `Version`.
-vFromS :: SemVer -> Version
-vFromS (SemVer ma mi pa re me) =
+semverToVersion :: SemVer -> Version
+semverToVersion (SemVer ma mi pa re me) =
   Version
   { _vEpoch = Nothing
   , _vChunks = Chunks $ Numeric ma :| [Numeric mi, Numeric pa]
@@ -148,8 +150,8 @@ vFromS (SemVer ma mi pa re me) =
   , _vRel = re }
 
 -- | Convert a `Version` to a `Mess`.
-mFromV :: Version -> Mess
-mFromV (Version me (Chunks v) r _) = case me of
+versionToMess :: Version -> Mess
+versionToMess (Version me (Chunks v) r _) = case me of
   Nothing -> f
   Just e  ->
     let cs = (:| []) . MDigit e $ showt e
@@ -164,6 +166,17 @@ mFromV (Version me (Chunks v) r _) = case me of
     g (Release cs) = (VHyphen, Mess ms Nothing)
       where
         ms = NEL.map toMChunk cs
+
+-- | Convert a `Version` to a `PVP`. Fails if there is an epoch present, but
+-- otherwise ignores the `Release` and other metadata. Naturally it also fails
+-- if any of the version components contain any non-digits.
+versionToPvp :: Version -> Maybe PVP
+versionToPvp (Version (Just _) _ _ _) = Nothing
+versionToPvp (Version Nothing (Chunks cs) _ _) = PVP <$> traverse f cs
+  where
+    f :: Chunk -> Maybe Word
+    f (Numeric w)  = Just w
+    f (Alphanum _) = Nothing
 
 semverAndVer :: SemVer -> Version -> Ordering
 -- A `Version` with a non-zero epoch value is automatically greater than any
@@ -233,7 +246,7 @@ semverAndMess s@(SemVer ma mi pa _ _) m = case compare ma <$> messMajor m of
           EQ -> GT
   where
     fallback :: Ordering
-    fallback = compare (General $ vFromS s) (Complex m)
+    fallback = compare (General $ semverToVersion s) (Complex m)
 
 instance Semantic Versioning where
   major f (Ideal v)   = Ideal   <$> major f v
@@ -527,7 +540,7 @@ singleDigitLenient (Alphanum s) = hush $ parse unsignedP "Single Digit Lenient" 
 --    change. The spec otherwise designates no special meaning to components
 --    past the MINOR position.
 newtype PVP = PVP { _pComponents :: NonEmpty Word }
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
 instance Semantic PVP where
@@ -622,7 +635,7 @@ instance Semantic Version where
   {-# INLINE meta #-}
 
   semantic f (Version _ (Chunks (Numeric a :| Numeric b : Numeric c : _)) rs me) =
-    vFromS <$> f (SemVer a b c rs me)
+    semverToVersion <$> f (SemVer a b c rs me)
   semantic _ v = pure v
   {-# INLINE semantic #-}
 
@@ -752,7 +765,7 @@ instance Semantic Mess where
 
   -- | Good luck.
   semantic f (Mess (MDigit t0 _ :| MDigit t1 _ : MDigit t2 _ : _) _) =
-    mFromV . vFromS <$> f (SemVer t0 t1 t2 Nothing Nothing)
+    versionToMess . semverToVersion <$> f (SemVer t0 t1 t2 Nothing Nothing)
   semantic _ v = pure v
   {-# INLINE semantic #-}
 

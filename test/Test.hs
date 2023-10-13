@@ -18,7 +18,7 @@ import           Test.Tasty.HUnit
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import           Text.Printf (printf)
-import           TH (thVer)
+import           TH (thP, thV, thVer)
 
 ---
 
@@ -177,6 +177,10 @@ suite = testGroup "Tests"
         , eqVer "150_28-3"
         , eqVer "1.0.r15.g3fc772c-5"
         , eqVer "0.88-2"
+        ]
+      , testGroup "Conversions"
+        [ testCase "Good Version -> PVP" $ versionToPvp $(thV "1.2.3") @?= Just $(thP "1.2.3")
+        , testCase "Bad  Version -> PVP" $ versionToPvp $(thV "1.e.3") @?= Nothing
         ]
       ]
     , testGroup "Lenses and Traversals"

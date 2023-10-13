@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+#### Added
+
+- `Data` instances for the various data types.
+- Simple conversion types between the main version types.
+
 ## 6.0.2 (2023-10-12)
 
 #### Added
