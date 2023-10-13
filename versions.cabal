@@ -59,7 +59,6 @@ test-suite versions-test
   main-is:        Test.hs
   hs-source-dirs: test
   ghc-options:    -threaded -with-rtsopts=-N
-  other-modules:  TH
   build-depends:
     , microlens         >=0.4
     , tasty             >=0.10.1.2

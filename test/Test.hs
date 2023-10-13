@@ -18,7 +18,6 @@ import           Test.Tasty.HUnit
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import           Text.Printf (printf)
-import           TH (thP, thV, thVer)
 
 ---
 
@@ -179,8 +178,8 @@ suite = testGroup "Tests"
         , eqVer "0.88-2"
         ]
       , testGroup "Conversions"
-        [ testCase "Good Version -> PVP" $ versionToPvp $(thV "1.2.3") @?= Just $(thP "1.2.3")
-        , testCase "Bad  Version -> PVP" $ versionToPvp $(thV "1.e.3") @?= Nothing
+        [ testCase "Good Version -> PVP" $ versionToPvp $(versionQ "1.2.3") @?= Just $(pvpQ "1.2.3")
+        , testCase "Bad  Version -> PVP" $ versionToPvp $(versionQ "1.e.3") @?= Nothing
         ]
       ]
     , testGroup "Lenses and Traversals"
@@ -189,15 +188,15 @@ suite = testGroup "Tests"
       , testCase "SemVer - Get patches" patches
       ]
     , testGroup "Template Haskell"
-      [ testCase "SemVer"  $ prettyV $(thVer "1.2.3") @?= "1.2.3"
-      , testCase "Version" $ prettyV $(thVer "1.2.3.4") @?= "1.2.3.4"
-      , testCase "Mess"    $ prettyV $(thVer "003.03-3") @?= "003.03-3"
-      , testCase "Failure" $ $(recover [| () |] (thVer "!!!")) @?= ()
+      [ testCase "SemVer"  $ prettyV $(versioningQ "1.2.3") @?= "1.2.3"
+      , testCase "Version" $ prettyV $(versioningQ "1.2.3.4") @?= "1.2.3.4"
+      , testCase "Mess"    $ prettyV $(versioningQ "003.03-3") @?= "003.03-3"
+      , testCase "Failure" $ $(recover [| () |] (versioningQ "!!!")) @?= ()
       ]
     , testGroup "Megaparsec Behaviour"
       [ testCase "manyTill" $ parse nameGrab "manyTill" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right "linux-firmware"
       , testCase "Extracting version" $ parse versionGrab "extraction" "linux-firmware-3.2.14-1-x86_64.pkg.tar.xz" @?= Right (Ideal $ SemVer 3 2 14 (Just . Release $ Alphanum "1-x86" :| []) Nothing)
-      , testCase "Parser State" $ parse pvp'' "parser state" "1.2.3arst" @?= Right ($(thP "1.2.3"), "arst")
+      , testCase "Parser State" $ parse pvp'' "parser state" "1.2.3arst" @?= Right ($(pvpQ "1.2.3"), "arst")
       ]
     ]
   ]

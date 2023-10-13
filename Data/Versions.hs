@@ -51,6 +51,8 @@ module Data.Versions
   , Chunk(..)
   , MChunk(..)
   , VSep(..)
+    -- ** Compile-time Constructors
+  , versioningQ, semverQ, versionQ, messQ, pvpQ
     -- ** Conversions
   , semverToVersion, versionToMess, versionToPvp
     -- * Parsing Versions
@@ -90,7 +92,8 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
-import           Language.Haskell.TH.Syntax (Lift)
+import           Language.Haskell.TH (Exp, Q)
+import           Language.Haskell.TH.Syntax (Lift(..))
 import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -780,6 +783,41 @@ instance Semantic Mess where
 data VSep = VColon | VHyphen | VPlus | VUnder | VTilde
   deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
+
+-- | Parse a `Versioning` at compile time.
+versioningQ :: Text -> Q Exp
+versioningQ nm =
+  case versioning nm of
+    Left err -> fail (errorBundlePretty err)
+    Right v  -> lift v
+
+-- | Parse a `SemVer` at compile time.
+semverQ :: T.Text -> Q Exp
+semverQ nm =
+  case semver nm of
+    Left err -> fail (errorBundlePretty err)
+    Right v  -> lift v
+
+-- | Parse a `Version` at compile time.
+versionQ :: T.Text -> Q Exp
+versionQ nm =
+  case version nm of
+    Left err -> fail (errorBundlePretty err)
+    Right v  -> lift v
+
+-- | Parse a `Mess` at compile time.
+messQ :: T.Text -> Q Exp
+messQ nm =
+  case mess nm of
+    Left err -> fail (errorBundlePretty err)
+    Right v  -> lift v
+
+-- | Parse a `PVP` at compile time.
+pvpQ :: T.Text -> Q Exp
+pvpQ nm =
+  case pvp nm of
+    Left err -> fail (errorBundlePretty err)
+    Right v  -> lift v
 
 --------------------------------------------------------------------------------
 -- Parsing
