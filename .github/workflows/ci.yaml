@@ -14,15 +14,18 @@ jobs:
       matrix:
         resolver:
           [
-            "lts-21.15",
+            "lts-22.3",
+            "lts-21.25",
             "lts-20.26",
             "lts-19.33",
             "lts-18.28",
             "lts-16.31",
           ]
         include:
-          - resolver: "lts-21.15"
-            ghc: "9.4.7"
+          - resolver: "lts-22.3"
+            ghc: "9.6.3"
+          - resolver: "lts-21.25"
+            ghc: "9.4.8"
           - resolver: "lts-20.26"
             ghc: "9.2.8"
           - resolver: "lts-19.33"
