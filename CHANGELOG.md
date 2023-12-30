@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.4 (2023-12-29)
+
+#### Changed
+
+- Bump dependencies to support GHC 9.8.
+
 ## 6.0.3 (2023-10-23)
 
 #### Added
