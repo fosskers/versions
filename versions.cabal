@@ -40,9 +40,9 @@ common commons
     -Wincomplete-uni-patterns
 
   build-depends:
-    , base        >=4.10 && <4.19
+    , base        >=4.10 && <4.20
     , megaparsec  >=7
-    , text        ^>=1.2 || ^>= 2.0
+    , text        ^>=1.2 || ^>= 2.1
     , template-haskell >= 2.15
 
 library
