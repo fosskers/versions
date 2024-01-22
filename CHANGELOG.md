@@ -11,7 +11,7 @@
 #### Added
 
 - `Data` instances for the various data types.
-- Simple conversion types between the main version types.
+- Simple conversion functions between the main version types.
 - Compile-time constructors via Template Haskell, like `versioningQ`.
 
 ## 6.0.2 (2023-10-12)
