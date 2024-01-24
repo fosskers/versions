@@ -904,7 +904,7 @@ pvp = parse (pvp' <* eof) "PVP"
 
 -- | Internal megaparsec parser of `pvp`.
 pvp' :: Parsec Void Text PVP
-pvp' = L.lexeme space (fmap PVP $ (maybe (fail "No decimals in pvp'") pure) . NEL.nonEmpty =<< (L.decimal `sepBy` char '.'))
+pvp' = L.lexeme space (PVP <$> L.decimal `PC.sepBy1` char '.')
 
 -- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParsingError Version
