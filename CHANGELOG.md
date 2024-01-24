@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.5 (2024-01-24)
+
+#### Fixed
+
+- Certain illegal versions were parsing as PVP.
+
 ## 6.0.4 (2023-12-29)
 
 #### Changed
