@@ -31,6 +31,9 @@ goodVers = [ "1", "1.2", "1.0rc0", "1.0rc1", "1.1rc1", "1.58.0-3",  "44.0.2403.1
 badVers :: [T.Text]
 badVers = ["", "1.2 "]
 
+badPVP :: [T.Text]
+badPVP = ["", "clc237", "abc"]
+
 messes :: [T.Text]
 messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2", "1.6.0a+2014+m872b87e73dfb-1"
          , "1.3.00.16851-1", "5.2.458699.0906-1", "12.0.0-3ubuntu1~20.04.5" ]
@@ -96,6 +99,8 @@ suite = testGroup "Tests"
     , testGroup "(Haskell) PVP"
       [ testGroup "Good PVPs" $
         map (\s -> testCase (T.unpack s) $ isomorphPVP s) cabalOrd
+      , testGroup "Bad PVP" $
+        map (\s -> testCase (T.unpack s) $ assertBool "A bad PVP parsed" $ isLeft $ pvp s) badPVP
       , testGroup "Comparisons" $
         zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp pvp a b) cabalOrd (tail cabalOrd)
       ]
