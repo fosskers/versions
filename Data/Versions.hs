@@ -105,7 +105,7 @@ import           Text.Megaparsec.Char.Lexer (decimal)
 -- This allows each subtype to have its own parser, and for said parsers to be
 -- composed. This is useful for specifying custom behaviour for when a certain
 -- parser fails.
-data Versioning = Ideal SemVer | General Version | Complex Mess
+data Versioning = Ideal !SemVer | General !Version | Complex !Mess
   deriving (Eq, Show, Generic, NFData, Hashable, Lift, Data)
 
 -- | Short-hand for detecting a `SemVer`.
@@ -476,7 +476,7 @@ instance Ord Release where
 -- r3
 -- 0rc1-abc3
 -- @
-data Chunk = Numeric Word | Alphanum Text
+data Chunk = Numeric !Word | Alphanum !Text
   deriving stock (Eq, Show, Read, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
 
@@ -671,11 +671,11 @@ instance Ord Chunks where
 -- it could be, alongside the original text it came from. This preserves both
 -- `Ord` and pretty-print behaviour for versions like @1.003.0@.
 data MChunk
-  = MDigit Word Text
+  = MDigit !Word !Text
   -- ^ A nice numeric value.
-  | MRev Word Text
+  | MRev !Word !Text
   -- ^ A numeric value preceeded by an @r@, indicating a revision.
-  | MPlain Text
+  | MPlain !Text
   -- ^ Anything else.
   deriving stock (Eq, Show, Generic, Lift, Data)
   deriving anyclass (NFData, Hashable)
@@ -1022,7 +1022,7 @@ hush :: Either a b -> Maybe b
 hush (Left _)  = Nothing
 hush (Right b) = Just b
 
-data These a b = This a | That b | Both a b
+data These a b = This !a | That !b | Both !a !b
 
 zipLongest :: [a] -> [b] -> [These a b]
 zipLongest [] []         = []
