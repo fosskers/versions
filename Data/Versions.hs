@@ -91,13 +91,13 @@ import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Void (Void)
+import           Data.Word (Word64)
 import           GHC.Generics (Generic)
 import           Language.Haskell.TH (Exp, Q)
 import           Language.Haskell.TH.Syntax (Lift(..))
 import           Text.Megaparsec hiding (chunk)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import           Text.Megaparsec.Char.Lexer (decimal)
 
 ---
 
@@ -850,7 +850,20 @@ semver'' = SemVer <$> majorP <*> minorP <*> patchP <*> optional releaseP <*> opt
 
 -- | Parse a group of digits, which can't be lead by a 0, unless it is 0.
 unsignedP :: Parsec Void Text Word
-unsignedP = (0 <$ char '0') <|> decimal
+unsignedP = asWord64 >>= convertOrFail
+  where
+    asWord64 :: Parsec Void Text Word64
+    asWord64 = (0 <$ char '0') <|> L.decimal
+
+    convertOrFail :: Word64 -> Parsec Void Text Word
+    convertOrFail w | w'' /= w = fail "You are not on a 64-bit system and have encountered a number too large to parse."
+                    | otherwise = pure w'
+      where
+        w' :: Word
+        w' = fromIntegral w
+
+        w'' :: Word64
+        w'' = fromIntegral w'
 
 majorP :: Parsec Void Text Word
 majorP = unsignedP <* char '.'
@@ -904,7 +917,7 @@ pvp = parse (pvp' <* eof) "PVP"
 
 -- | Internal megaparsec parser of `pvp`.
 pvp' :: Parsec Void Text PVP
-pvp' = L.lexeme space (PVP <$> L.decimal `PC.sepBy1` char '.')
+pvp' = L.lexeme space (PVP <$> unsignedP `PC.sepBy1` char '.')
 
 -- | Parse a (General) `Version`, as defined above.
 version :: Text -> Either ParsingError Version
@@ -918,7 +931,7 @@ version'' :: Parsec Void Text Version
 version'' = Version <$> optional (try epochP) <*> chunksP <*> optional releaseP <*> optional metaData
 
 epochP :: Parsec Void Text Word
-epochP = read <$> (some digitChar <* char ':')
+epochP = unsignedP <* char ':'
 
 chunksP :: Parsec Void Text Chunks
 chunksP = Chunks <$> chunkWithoutHyphensP `PC.sepBy1` char '.'
