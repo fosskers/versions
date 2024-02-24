@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+#### Fixed
+
+- Account for large numbers when parsing on 32-bit (or smaller) systems.
+
 ## 6.0.5 (2024-01-24)
 
 #### Fixed
