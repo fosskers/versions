@@ -45,7 +45,12 @@ messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
             ]
 
 badSemVs :: [T.Text]
-badSemVs = [ "1", "1.2", "a.b.c", "1.01.1", "1.2.3+a1b!2c3.1", "", "1.2.3 "
+badSemVs = [ -- Not enough version slots
+           "1", "1.2", "a.b.c"
+           -- Illegal characters
+           , "1.01.1", "1.2.3+a1b!2c3.1", "", "1.2.3 "
+           -- Really large version
+           -- , "18446744073709551610000000000000000.0.0"
            ]
 
 goodSemVs :: [T.Text]
@@ -83,8 +88,7 @@ suite :: TestTree
 suite = testGroup "Tests"
   [ testGroup "Unit Tests"
     [ testGroup "(Ideal) Semantic Versioning"
-      [ testGroup "Bad Versions (shouldn't parse)" $
-        map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ semver s) badSemVs
+      [ testGroup "Bad Versions (shouldn't parse)" $ map bad badSemVs
       , testGroup "Good Versions (should parse)" $
         map (\s -> testCase (T.unpack s) $ isomorphSV s) goodSemVs
       , testGroup "Comparisons" $
@@ -208,6 +212,11 @@ suite = testGroup "Tests"
       ]
     ]
   ]
+
+bad :: T.Text -> TestTree
+bad s = testCase (T.unpack s) $ case semver s of
+  Left _   -> pure ()
+  Right s' -> assertFailure $ "A bad version parsed: " ++ T.unpack (prettySemVer s')
 
 compVer :: T.Text -> T.Text -> TestTree
 compVer a b = testCase (printf "%s < %s" a b) $ comp versioning a b

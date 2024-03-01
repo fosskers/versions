@@ -856,14 +856,11 @@ unsignedP = asWord64 >>= convertOrFail
     asWord64 = (0 <$ char '0') <|> L.decimal
 
     convertOrFail :: Word64 -> Parsec Void Text Word
-    convertOrFail w | w'' /= w = fail "You are not on a 64-bit system and have encountered a number too large to parse."
-                    | otherwise = pure w'
+    convertOrFail w | w > bound = fail $ "Value (" ++ show w ++ ") larger than Word size: " ++ show bound
+                    | otherwise = pure $ fromIntegral w
       where
-        w' :: Word
-        w' = fromIntegral w
-
-        w'' :: Word64
-        w'' = fromIntegral w'
+        bound :: Word64
+        bound = fromIntegral (maxBound :: Word)
 
 majorP :: Parsec Void Text Word
 majorP = unsignedP <* char '.'
