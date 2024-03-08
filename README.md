@@ -71,3 +71,16 @@ incPatch s = s & patch %~ (+ 1)
 > incPatch "1.2.3"
 "1.2.4"
 ```
+
+#### Caveats
+
+The largest number that can be parsed as part of a version is:
+
+``` haskell
+ghci> maxBound :: Word64
+18446744073709551615
+```
+
+However, on 32-bit systems (or smaller), the maximum is their `maxBound :: Word`. 
+A number larger than that, even if smaller than `maxBound :: Word64`,
+will yield a parse error.
