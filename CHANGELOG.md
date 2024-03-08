@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.0.6 (2024-03-08)
 
 #### Fixed
 

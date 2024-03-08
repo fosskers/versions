@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               versions
-version:            6.0.5
+version:            6.0.6
 synopsis:           Types and parsers for software version numbers.
 description:
   A library for parsing and comparing software version numbers. We like to give
