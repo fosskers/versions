@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.7 (2024-06-03)
+
+#### Changed
+
+- Bumped upper bound on `base`.
+
 ## 6.0.6 (2024-03-08)
 
 #### Fixed
