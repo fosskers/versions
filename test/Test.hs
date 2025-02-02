@@ -8,6 +8,7 @@ module Main ( main ) where
 
 import           Data.Either (fromRight, isLeft)
 import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as T
 import           Data.Versions
 import           Data.Void (Void)
@@ -39,7 +40,7 @@ messes :: [T.Text]
 messes = [ "10.2+0.93+1-1", "003.03-3", "002.000-7", "20.26.1_0-2", "1.6.0a+2014+m872b87e73dfb-1"
          , "1.3.00.16851-1", "5.2.458699.0906-1", "12.0.0-3ubuntu1~20.04.5" ]
 
-messComps :: [T.Text]
+messComps :: NonEmpty T.Text
 messComps = [ "10.2+0.93+1-1", "10.2+0.93+1-2", "10.2+0.93+2-1"
             , "10.2+0.94+1-1", "10.3+0.93+1-1", "11.2+0.93+1-1", "12"
             ]
@@ -67,7 +68,7 @@ goodSemVs = [ "0.1.0", "1.2.3", "1.2.3-1", "1.2.3-alpha", "1.2.3-alpha.2"
             ]
 
 -- | The exact example from `http://semver.org`
-semverOrd :: [T.Text]
+semverOrd :: NonEmpty T.Text
 semverOrd = [ "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta"
             , "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1"
             , "1.0.0"
@@ -78,10 +79,10 @@ semverOrd = [ "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta"
 -- make this necessary, meaning `cabal` can't be simplified to ignore it.
 -- Logically, these are the same package, but for those 5 packages, they
 -- aren't.
-cabalOrd :: [T.Text]
+cabalOrd :: NonEmpty T.Text
 cabalOrd = [ "0", "0.2", "0.2.0", "0.2.0.0" ]
 
-versionOrd :: [T.Text]
+versionOrd :: NonEmpty T.Text
 versionOrd = [ "0.9.9.9", "1.0.0.0", "1.0.0.1", "2" ]
 
 suite :: TestTree
@@ -95,7 +96,7 @@ suite = testGroup "Tests"
         testCase "1.2.3-alpha.2 == 1.2.3-alpha.2+a1b2c3.1"
         (assertBool "Equality test of two complicated SemVers failed"
          $ semver "1.2.3-alpha.2" == semver "1.2.3-alpha.2+a1b2c3.1") :
-        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b) semverOrd (tail semverOrd)
+        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp semver a b) (NonEmpty.toList semverOrd) (NonEmpty.tail semverOrd)
       , testGroup "Whitespace Handling"
         [ testCase "1.2.3-1[ ]" $ parse semver' "semver whitespace" "1.2.3-1 " @?= Right (SemVer 1 2 3 (Just . Release $ Numeric 1 :| []) Nothing)
         ]
@@ -105,11 +106,11 @@ suite = testGroup "Tests"
       ]
     , testGroup "(Haskell) PVP"
       [ testGroup "Good PVPs" $
-        map (\s -> testCase (T.unpack s) $ isomorphPVP s) cabalOrd
+        map (\s -> testCase (T.unpack s) $ isomorphPVP s) (NonEmpty.toList cabalOrd)
       , testGroup "Bad PVP" $
         map (\s -> testCase (T.unpack s) $ assertBool "A bad PVP parsed" $ isLeft $ pvp s) badPVP
       , testGroup "Comparisons" $
-        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp pvp a b) cabalOrd (tail cabalOrd)
+        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp pvp a b) (NonEmpty.toList cabalOrd) (NonEmpty.tail cabalOrd)
       ]
     , testGroup "(General) Versions"
       [ testGroup "Good Versions" $
@@ -123,7 +124,7 @@ suite = testGroup "Tests"
         testCase "1.1 < 1:1.0" (comp version "1.1" "1:1.0") :
         testCase "1.1 < 1:1.1" (comp version "1.1" "1:1.1") :
         map (\(a,b) -> testCase (T.unpack $ a <> " < " <> b) $ comp version a b)
-        (zip cabalOrd (tail cabalOrd) <> zip versionOrd (tail versionOrd))
+        (zip (NonEmpty.toList cabalOrd) (NonEmpty.tail cabalOrd) <> zip (NonEmpty.toList versionOrd) (NonEmpty.tail versionOrd))
       ]
     , testGroup "(Complex) Mess"
       [ testGroup "Good Versions" $
@@ -131,7 +132,7 @@ suite = testGroup "Tests"
       , testGroup "Bad Versions (shouldn't parse)" $
         map (\s -> testCase (T.unpack s) $ assertBool "A bad version parsed" $ isLeft $ mess s) badVers
       , testGroup "Comparisons" $
-        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) messComps (tail messComps)
+        zipWith (\a b -> testCase (T.unpack $ a <> " < " <> b) $ comp mess a b) (NonEmpty.toList messComps) (NonEmpty.tail messComps)
       , testGroup "SemVer-like Value Extraction"
         [ testCase "messMajor" $
           (hush (mess "1.6.0a+2014+m872b87e73dfb-1") >>= messMajor) @?= Just 1
