@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.8 (2025-02-03)
+
+#### Changed
+
+- Bumped upper bound on `base` (support for GHC 9.12).
+
 ## 6.0.7 (2024-06-03)
 
 #### Changed
