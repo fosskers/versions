@@ -40,7 +40,7 @@ common commons
     -Wincomplete-uni-patterns
 
   build-depends:
-    , base        >=4.10 && <4.21
+    , base        >=4.10 && <4.22
     , megaparsec  >=7
     , text        ^>=1.2 || >= 2.0 && < 2.2
     , template-haskell >= 2.15
